@@ -1,0 +1,137 @@
+import { useEffect, useState } from 'react';
+import { liveLog } from '@/lib/demo';
+
+export type Page = 'home' | 'technik' | 'preise' | 'compliance' | 'auth' | 'app';
+
+export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () => void }) {
+  return (
+    <button onClick={onClick} className="flex items-baseline gap-0.5 select-none" aria-label="devplat – Home">
+      <span className={`font-doto text-[22px] tracking-tight ${dark ? 'text-[--dark-text]' : 'text-[--ink]'}`}>devplat</span>
+      <span className="text-[--red] text-[22px] leading-none">●</span>
+    </button>
+  );
+}
+
+export function Nav({ page, go }: { page: Page; go: (p: Page) => void }) {
+  const items: { key: Page; label: string }[] = [
+    { key: 'technik', label: 'How it works' },
+    { key: 'preise', label: 'Pricing' },
+    { key: 'compliance', label: 'Privacy & Legal' },
+  ];
+  return (
+    <header className="sticky top-0 z-40 bg-[--paper]/90 backdrop-blur border-b hairline">
+      <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
+        <Logo onClick={() => go('home')} />
+        <nav className="hidden md:flex items-center gap-8">
+          {items.map((i) => (
+            <button key={i.key} onClick={() => go(i.key)}
+              className={`text-sm transition-colors ${page === i.key ? 'text-[--ink] font-medium' : 'text-[--ink-soft] hover:text-[--ink]'}`}>
+              {i.label}
+            </button>
+          ))}
+        </nav>
+        <div className="flex items-center gap-3">
+          <button onClick={() => go('auth')} className="text-sm text-[--ink-soft] hover:text-[--ink]">Sign in</button>
+          <button onClick={() => go('auth')} className="btn-ink text-sm px-4 py-2">Try it free</button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function Footer({ go }: { go: (p: Page) => void }) {
+  return (
+    <footer className="border-t hairline bg-[--paper]">
+      <div className="mx-auto max-w-6xl px-5 py-14 grid gap-10 md:grid-cols-4">
+        <div>
+          <Logo onClick={() => go('home')} />
+          <p className="mt-3 text-sm text-[--ink-soft] max-w-[24ch]">Remote backend for Testcontainers. Hosted in Switzerland.</p>
+          <p className="mt-4 eyebrow">CH-ZRH-1 · <span className="text-[--green]">Operational</span></p>
+        </div>
+        <div>
+          <p className="eyebrow mb-3">Product</p>
+          <ul className="space-y-2 text-sm text-[--ink-soft]">
+            <li><button className="hover:text-[--ink]" onClick={() => go('technik')}>Architecture</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('preise')}>Pricing</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('auth')}>Dashboard</button></li>
+          </ul>
+        </div>
+        <div>
+          <p className="eyebrow mb-3">Trust</p>
+          <ul className="space-y-2 text-sm text-[--ink-soft]">
+            <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>GDPR & Swiss FADP</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>Download the DPA</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>Security model</button></li>
+          </ul>
+        </div>
+        <div>
+          <p className="eyebrow mb-3">Contact</p>
+          <ul className="space-y-2 text-sm text-[--ink-soft]">
+            <li>hello@devplat.dev</li>
+            <li>Zurich, Switzerland</li>
+          </ul>
+        </div>
+      </div>
+      <div className="border-t hairline">
+        <div className="mx-auto max-w-6xl px-5 py-4 flex flex-wrap gap-3 justify-between text-xs text-[--ink-soft] font-mono2">
+          <span>© 2026 devplat GmbH (in formation) — Demo frontend</span>
+          <span>Imprint · Terms · Privacy</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+export function Eyebrow({ children }: { children: React.ReactNode }) {
+  return <p className="eyebrow eyebrow-dot mb-4">{children}</p>;
+}
+
+const tone: Record<string, string> = { sys: 'text-[--dark-muted]', ok: 'text-[#57C99A]', img: 'text-[#E8B44C]', test: 'text-[#8AB8F0]' };
+
+export function TerminalDemo({ compact = false }: { compact?: boolean }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (n >= liveLog.length) return;
+    const jump = n === 10 ? 1500 : 420;
+    const t = setTimeout(() => setN((v) => v + 1), jump);
+    return () => clearTimeout(t);
+  }, [n]);
+  useEffect(() => {
+    if (n < liveLog.length) return;
+    const t = setTimeout(() => setN(0), 5200);
+    return () => clearTimeout(t);
+  }, [n]);
+  return (
+    <div className="bg-[--dark] text-left rounded-none border border-[--dark-line] shadow-[8px_8px_0_0_rgba(12,12,12,0.9)]">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[--dark-line]">
+        <span className="font-mono2 text-[11px] text-[--dark-muted]">mvn verify — payment-service</span>
+        <span className="font-mono2 text-[11px] text-[--dark-muted] flex items-center gap-2">
+          <span className="text-[--green] pulse-dot">●</span> CH-ZRH-1 · RTT 8 ms
+        </span>
+      </div>
+      <div className={`px-4 py-3 font-mono2 text-[11.5px] leading-relaxed ${compact ? 'h-56' : 'h-72'} overflow-hidden`}>
+        {liveLog.slice(0, n).map((l, i) => (
+          <div key={i} className="flex gap-3">
+            <span className="text-[--dark-muted] shrink-0">{l.t}</span>
+            <span className={tone[l.s]}>{l.m}</span>
+          </div>
+        ))}
+        {n < liveLog.length && <div className="cursor-blink" />}
+        {n >= liveLog.length && (
+          <div className="mt-2 text-[#57C99A]">✓ Completed in 1:38 — faster than local.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function Stat({ value, label, unit }: { value: string; label: string; unit?: string }) {
+  return (
+    <div>
+      <p className="font-doto text-5xl md:text-6xl leading-none">
+        {value}<span className="text-2xl align-top text-[--red]">{unit}</span>
+      </p>
+      <p className="mt-2 text-sm text-[--ink-soft]">{label}</p>
+    </div>
+  );
+}

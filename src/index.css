@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============ devplat design system ============ */
+:root {
+  --paper: #F4F4F1;
+  --ink: #0C0C0C;
+  --ink-soft: #4A4A46;
+  --line: #DEDED8;
+  --red: #E63312;
+  --green: #23A26D;
+  --amber: #D99000;
+  --dark: #0C0C0C;
+  --dark-card: #151514;
+  --dark-line: #262624;
+  --dark-text: #EDEDE8;
+  --dark-muted: #8A8A82;
+}
+html { scroll-behavior: smooth; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.font-doto { font-family: 'Doto', monospace; font-weight: 800; }
+.font-mono2 { font-family: 'JetBrains Mono', monospace; }
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.eyebrow-dot::before { content:'●'; color: var(--red); margin-right: 8px; font-size: 8px; vertical-align: 2px; }
+.hairline { border-color: var(--line); }
+.dotgrid {
+  background-image: radial-gradient(circle, rgba(12,12,12,0.13) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.dotgrid-dark {
+  background-image: radial-gradient(circle, rgba(237,237,232,0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.btn-ink {
+  background: var(--ink); color:#fff; font-weight: 500;
+  transition: all .18s ease;
+}
+.btn-ink:hover { background: var(--red); }
+.btn-ghost {
+  border:1px solid var(--ink); color: var(--ink); font-weight:500;
+  transition: all .18s ease;
+}
+.btn-ghost:hover { background: var(--ink); color:#fff; }
+.marquee { display:flex; gap:3rem; animation: marquee 26s linear infinite; white-space:nowrap; }
+@keyframes marquee { from { transform:translateX(0);} to { transform:translateX(-50%);} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cursor-blink::after { content:'▌'; animation: blink 1s step-end infinite; color: var(--green); }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+.pulse-dot { animation: pulse-dot 1.6s ease infinite; }
+@keyframes rise { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
+.rise { animation: rise .6s cubic-bezier(.2,.7,.3,1) both; }
+.rise-1 { animation-delay:.05s } .rise-2 { animation-delay:.15s } .rise-3 { animation-delay:.25s } .rise-4 { animation-delay:.35s }
+@media (prefers-reduced-motion: reduce) {
+  .marquee, .rise, .pulse-dot, .cursor-blink::after { animation: none !important; }
+}
+::selection { background: var(--red); color:#fff; }
