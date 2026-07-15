@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { liveLog } from '@/lib/demo';
+import { useAuth } from '@/lib/auth';
 
 export type Page = 'home' | 'technik' | 'preise' | 'compliance' | 'auth' | 'app';
 
@@ -30,12 +31,26 @@ export function Nav({ page, go }: { page: Page; go: (p: Page) => void }) {
             </button>
           ))}
         </nav>
-        <div className="flex items-center gap-3">
-          <button onClick={() => go('auth')} className="text-sm text-[--ink-soft] hover:text-[--ink]">Sign in</button>
-          <button onClick={() => go('auth')} className="btn-ink text-sm px-4 py-2">Try it free</button>
-        </div>
+        <NavAuthButtons go={go} />
       </div>
     </header>
+  );
+}
+
+function NavAuthButtons({ go }: { go: (p: Page) => void }) {
+  const { me, loading } = useAuth();
+  if (!loading && me) {
+    return (
+      <div className="flex items-center gap-3">
+        <button onClick={() => go('app')} className="btn-ink text-sm px-4 py-2">Dashboard</button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3">
+      <button onClick={() => go('auth')} className="text-sm text-[--ink-soft] hover:text-[--ink]">Sign in</button>
+      <button onClick={() => go('auth')} className="btn-ink text-sm px-4 py-2">Try it free</button>
+    </div>
   );
 }
 
