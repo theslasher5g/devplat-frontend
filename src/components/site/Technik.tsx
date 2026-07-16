@@ -26,7 +26,7 @@ $ devplat login
 
 # per session
 $ devplat connect
-✓ Tunnel active → CH-ZRH-1 (RTT 8 ms)
+✓ Tunnel active → CH-BSL-1 (RTT 8 ms)
 ✓ DOCKER_HOST=tcp://127.0.0.1:52731
 
 $ mvn verify            # or gradle, pytest, go test …`,
@@ -79,7 +79,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
               items={['Authenticates with an API token', 'Builds an mTLS tunnel to the control plane', 'Exposes a local Docker socket', 'Sets DOCKER_HOST — that\'s it']} />
             <Layer n="2" sub="orchestration" title="Control plane — auth, scheduling, metering"
               items={['Accounts, teams, tokens, quotas', 'Scheduler assigns the tunnel to a microVM', 'Enforces parallelism limits per plan', 'Event-based metering for the dashboard']} />
-            <Layer n="3" sub="Zurich" title="Data plane — Firecracker microVMs" dark
+            <Layer n="3" sub="Basel" title="Data plane — Firecracker microVMs" dark
               items={['One VM per test run, a real Docker daemon inside', '~150 ms boot, snapshots for top images', 'KVM isolation instead of container tricks', 'After the run: VM & storage destroyed']} />
           </div>
           {/* flow: vertical stepper — every step visible, nothing to scroll */}
@@ -87,7 +87,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
             <p className="eyebrow mb-8">Data flow of a test run</p>
             <ol className="max-w-3xl">
               {[
-                ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'mTLS tunnel to Zurich'],
+                ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'mTLS tunnel to Basel'],
                 ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a mutually authenticated TLS tunnel to the control plane.', ''],
                 ['scheduler', 'Checks your plan’s parallelism limit and assigns the run to a free microVM. If everything is busy, the run queues briefly instead of failing.', ''],
                 ['microVM · dockerd', 'A dedicated Firecracker VM with a real Docker daemon inside — isolated from every other customer by a KVM boundary, not by namespaces.', ''],
@@ -170,7 +170,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
 
       <section className="bg-[--ink] text-[--dark-text]">
         <div className="mx-auto max-w-6xl px-5 py-16 md:flex items-center justify-between gap-8">
-          <p className="text-2xl font-semibold max-w-[30ch]">Enough theory. Point your next test run at Zurich.</p>
+          <p className="text-2xl font-semibold max-w-[30ch]">Enough theory. Point your next test run at Basel.</p>
           <div className="mt-6 md:mt-0 flex gap-3 shrink-0">
             <button onClick={() => go('download')} className="bg-white text-[--ink] px-6 py-3 font-medium hover:bg-[--red] hover:text-white transition-colors">Install the CLI</button>
             <button onClick={() => go('auth')} className="border border-[--dark-line] px-6 py-3 hover:border-white transition-colors">Create an account</button>

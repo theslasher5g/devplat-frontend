@@ -56,7 +56,7 @@ export default function Download({ go }: { go: (p: Page) => void }) {
         <div className="mx-auto max-w-6xl px-5 py-20">
           <Eyebrow>Download</Eyebrow>
           <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[1.02] max-w-[22ch]">
-            One binary between your tests and <span className="font-doto">Zurich</span>.
+            One binary between your tests and <span className="font-doto">Basel</span>.
           </h1>
           <p className="mt-6 text-lg text-[--ink-soft] max-w-[56ch]">
             The devplat CLI is a single static Go binary: no runtime, no Docker Desktop, no

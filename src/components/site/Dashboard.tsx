@@ -606,7 +606,7 @@ export default function Dashboard() {
           )}
         </nav>
         <div className="p-5 border-t border-[--dark-line] font-mono2 text-[10px] text-[--dark-muted] space-y-1">
-          <p><span className="text-[#57C99A] pulse-dot">●</span> CH-ZRH-1 operational</p>
+          <p><span className="text-[#57C99A] pulse-dot">●</span> CH-BSL-1 operational</p>
           <p>Control plane · api.devplat.ch</p>
         </div>
       </aside>

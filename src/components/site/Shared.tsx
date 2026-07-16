@@ -62,7 +62,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
         <div>
           <Logo onClick={() => go('home')} />
           <p className="mt-3 text-sm text-[--ink-soft] max-w-[24ch]">Remote backend for Testcontainers. Hosted in Switzerland.</p>
-          <p className="mt-4 eyebrow">CH-ZRH-1 · <span className="text-[--green]">Operational</span></p>
+          <p className="mt-4 eyebrow">CH-BSL-1 · <span className="text-[--green]">Operational</span></p>
         </div>
         <div>
           <p className="eyebrow mb-3">Product</p>
@@ -85,7 +85,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
           <p className="eyebrow mb-3">Contact</p>
           <ul className="space-y-2 text-sm text-[--ink-soft]">
             <li>hello@devplat.dev</li>
-            <li>Zurich, Switzerland</li>
+            <li>Basel, Switzerland</li>
           </ul>
         </div>
       </div>
@@ -123,7 +123,7 @@ export function TerminalDemo({ compact = false }: { compact?: boolean }) {
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[--dark-line]">
         <span className="font-mono2 text-[11px] text-[--dark-muted]">mvn verify — payment-service</span>
         <span className="font-mono2 text-[11px] text-[--dark-muted] flex items-center gap-2">
-          <span className="text-[--green] pulse-dot">●</span> CH-ZRH-1 · RTT 8 ms
+          <span className="text-[--green] pulse-dot">●</span> CH-BSL-1 · RTT 8 ms
         </span>
       </div>
       <div className={`px-4 py-3 font-mono2 text-[11.5px] leading-relaxed ${compact ? 'h-56' : 'h-72'} overflow-hidden`}>

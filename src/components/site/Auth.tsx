@@ -49,7 +49,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
           <p><span className="text-[--red]">01</span>  Create an account</p>
           <p><span className="text-[--red]">02</span>  devplat connect — token gets set up</p>
           <p><span className="text-[--red]">03</span>  mvn verify — your code, unchanged</p>
-          <p className="text-[#57C99A] pt-3">✓ First test run completed through Zurich</p>
+          <p className="text-[#57C99A] pt-3">✓ First test run completed through Basel</p>
         </div>
         <p className="text-sm text-[--dark-muted] max-w-[36ch]">"We cut our CI time in half and cancelled the Docker Desktop contract. Same sprint." — Beta customer, Basel</p>
       </div>

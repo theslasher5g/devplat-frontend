@@ -19,7 +19,7 @@ export function Preise({ go }: { go: (p: Page) => void }) {
     ['What counts as a "parallel environment"?', 'An environment is a microVM with its own Docker daemon — typically one test run (one CI job or one local session), no matter how many containers run inside it. 5 parallel environments means: 5 CI jobs can run integration tests at the same time; the 6th waits briefly in the queue.'],
     ['What happens once the limit is reached?', 'Nothing dramatic: the next run is queued and starts as soon as an environment frees up. No overage fees, no invoice with an asterisk. The dashboard shows your utilization so you know exactly when an upgrade pays off.'],
     ['Do I need a Docker subscription?', 'No. Neither Docker Desktop nor a Docker Hub plan. Our cache serves the image pulls; your CI doesn\'t even need a Docker daemon.'],
-    ['Where exactly do my containers run?', 'On our own hardware in Zurich, Switzerland. No hyperscaler, no sub-sub-processors. Details on the Privacy & Legal page.'],
+    ['Where exactly do my containers run?', 'On our own hardware in Basel, Switzerland. No hyperscaler, no sub-sub-processors. Details on the Privacy & Legal page.'],
     ['How does billing work?', 'Monthly or annually by credit card or invoice through our payment processor (merchant of record) — including correct VAT handling for EU customers via reverse charge.'],
   ];
   return (
@@ -94,7 +94,7 @@ export function Preise({ go }: { go: (p: Page) => void }) {
                 {[
                   ['Pricing model', 'Flat by parallelism — predictable', 'Minute bundles + overages'],
                   ['Docker subscription required', 'No', 'Tied to Docker plans'],
-                  ['Hosting', 'Zurich, Switzerland — own hardware', 'US cloud'],
+                  ['Hosting', 'Basel, Switzerland — own hardware', 'US cloud'],
                   ['Privacy basis', 'Swiss FADP + GDPR, DPA included', 'US provider, DPF-dependent'],
                   ['Custom images in the cache', 'Yes (from Team)', 'Limited'],
                   ['Contract & support', 'Direct, human support', 'Enterprise sales'],
@@ -147,7 +147,7 @@ export function Compliance() {
       <section className="border-b hairline">
         <div className="mx-auto max-w-6xl px-5 py-16 grid gap-6 md:grid-cols-2">
           {[
-            ['Switzerland as the location', 'Processing happens exclusively on our own hardware in Zurich. Switzerland holds an EU adequacy decision — data transfers from the EU are permitted without additional safeguards. For Swiss customers, the Federal Act on Data Protection (FADP) applies directly.'],
+            ['Switzerland as the location', 'Processing happens exclusively on our own hardware in Basel. Switzerland holds an EU adequacy decision — data transfers from the EU are permitted without additional safeguards. For Swiss customers, the Federal Act on Data Protection (FADP) applies directly.'],
             ['Ephemeral by design', 'Every test run gets a fresh microVM; storage is cryptographically wiped after the run. There is no backup of your test data, because there is no data left to back up. Retention period: 0 seconds.'],
             ['DPA & EU representative', 'Data Processing Agreement under Art. 28 GDPR available as a self-service download, a public register of the (few) sub-processors, an EU representative under Art. 27 named.'],
             ['Access & logging', 'No administrative access to running customer VMs. Access to the control plane is logged; your account\'s audit log belongs to you (Scale plan).'],

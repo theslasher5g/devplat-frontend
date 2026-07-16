@@ -7,7 +7,7 @@ export default function Home({ go }: { go: (p: Page) => void }) {
       <section className="border-b hairline dotgrid">
         <div className="mx-auto max-w-6xl px-5 py-20 md:py-28 grid gap-14 lg:grid-cols-[1.05fr_1fr] items-center">
           <div>
-            <p className="eyebrow eyebrow-dot rise rise-1">Remote backend for Testcontainers · Hosted in Zurich</p>
+            <p className="eyebrow eyebrow-dot rise rise-1">Remote backend for Testcontainers · Hosted in Basel</p>
             <h1 className="rise rise-2 mt-5 text-5xl md:text-7xl font-semibold leading-[0.98] tracking-tight">
               Your tests.<br />
               <span className="font-doto">Our</span> containers.
@@ -41,7 +41,7 @@ export default function Home({ go }: { go: (p: Page) => void }) {
               ['Slow pipelines', 'Every CI run pulls the same images again. A postgres:16 pull costs 20–30 seconds — per job, per day, per team.'],
               ['Resource limits', 'GitHub runners with 2 vCPU / 7 GB collapse the moment Kafka, Elasticsearch, and your app all need to run at once.'],
               ['Opaque costs', 'Per-minute billing with overages turns your invoice into a guessing game. With us: a flat rate by parallelism. Full stop.'],
-              ['US-cloud lock-in', 'Test data ends up containing real schemas more often than planned. Compliance teams ask questions — we have answers, from Zurich.'],
+              ['US-cloud lock-in', 'Test data ends up containing real schemas more often than planned. Compliance teams ask questions — we have answers, from Basel.'],
             ].map(([t, d]) => (
               <li key={t} className="border-l-2 border-[--ink] pl-5">
                 <p className="font-medium text-[--ink]">{t}</p>
@@ -69,7 +69,7 @@ export default function Home({ go }: { go: (p: Page) => void }) {
               <pre className="mt-4 font-mono2 text-xs bg-[--ink] text-[--dark-text] p-4 overflow-x-auto">{`# before: docker runs locally
 $ mvn verify
 
-# after: docker runs in Zurich
+# after: docker runs in Basel
 $ devplat connect
 $ mvn verify   # unchanged.`}</pre>
             </div>

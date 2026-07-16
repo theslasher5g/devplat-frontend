@@ -1,7 +1,7 @@
 /** Marketing-site content: the animated hero terminal and the pricing tiers. */
 
 export const liveLog = [
-  { t: '00:00.000', s: 'sys', m: 'mTLS tunnel established → devplat CH-ZRH-1 (RTT 8 ms)' },
+  { t: '00:00.000', s: 'sys', m: 'mTLS tunnel established → devplat CH-BSL-1 (RTT 8 ms)' },
   { t: '00:00.142', s: 'sys', m: 'microVM vm_c8e2 assigned · Firecracker snapshot restored' },
   { t: '00:00.310', s: 'ok', m: 'Docker API ready at tcp://127.0.0.1:52731' },
   { t: '00:00.412', s: 'img', m: 'postgres:16 → cache hit (local, 0.3 s instead of 24 s)' },
