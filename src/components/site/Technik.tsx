@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import GithubComparisonSection from './GithubComparisonSection';
 import { Eyebrow, type Page } from './Shared';
 
 const snippets: Record<string, string> = {
@@ -147,6 +148,8 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
           </div>
         </div>
       </section>
+
+      <GithubComparisonSection />
 
       {/* INTEGRATION SNIPPETS */}
       <section className="border-b hairline">
