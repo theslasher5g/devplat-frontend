@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';
 
-export type Page = 'home' | 'technik' | 'preise' | 'compliance' | 'auth' | 'app';
+export type Page = 'home' | 'technik' | 'preise' | 'download' | 'compliance' | 'auth' | 'app';
 
 export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () => void }) {
   return (
@@ -17,6 +17,7 @@ export function Nav({ page, go }: { page: Page; go: (p: Page) => void }) {
   const items: { key: Page; label: string }[] = [
     { key: 'technik', label: 'How it works' },
     { key: 'preise', label: 'Pricing' },
+    { key: 'download', label: 'Download' },
     { key: 'compliance', label: 'Privacy & Legal' },
   ];
   return (
@@ -68,6 +69,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
           <ul className="space-y-2 text-sm text-[--ink-soft]">
             <li><button className="hover:text-[--ink]" onClick={() => go('technik')}>Architecture</button></li>
             <li><button className="hover:text-[--ink]" onClick={() => go('preise')}>Pricing</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('download')}>Download the CLI</button></li>
             <li><button className="hover:text-[--ink]" onClick={() => go('auth')}>Dashboard</button></li>
           </ul>
         </div>
@@ -89,7 +91,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
       </div>
       <div className="border-t hairline">
         <div className="mx-auto max-w-6xl px-5 py-4 flex flex-wrap gap-3 justify-between text-xs text-[--ink-soft] font-mono2">
-          <span>© 2026 devplat GmbH (in formation) — Demo frontend</span>
+          <span>© 2026 devplat GmbH (in formation)</span>
           <span>Imprint · Terms · Privacy</span>
         </div>
       </div>

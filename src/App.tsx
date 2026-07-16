@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import Admin from '@/components/site/Admin';
 import Auth, { InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
 import Dashboard from '@/components/site/Dashboard';
+import Download from '@/components/site/Download';
 import Home from '@/components/site/Home';
 import { Preise, Compliance } from '@/components/site/PreiseCompliance';
 import { Footer, Nav, type Page } from '@/components/site/Shared';
@@ -13,6 +14,7 @@ export const PAGE_PATHS: Record<Page, string> = {
   home: '/',
   technik: '/how-it-works',
   preise: '/pricing',
+  download: '/download',
   compliance: '/legal',
   auth: '/auth',
   app: '/app',
@@ -47,6 +49,7 @@ function MarketingPage({ page }: { page: Exclude<Page, 'auth' | 'app'> }) {
     page === 'home' ? <Home go={go} /> :
     page === 'technik' ? <Technik go={go} /> :
     page === 'preise' ? <Preise go={go} /> :
+    page === 'download' ? <Download go={go} /> :
     <Compliance />;
   return <MarketingLayout page={page}>{body}</MarketingLayout>;
 }
@@ -60,6 +63,7 @@ export default function App() {
           <Route path="/" element={<MarketingPage page="home" />} />
           <Route path="/how-it-works" element={<MarketingPage page="technik" />} />
           <Route path="/pricing" element={<MarketingPage page="preise" />} />
+          <Route path="/download" element={<MarketingPage page="download" />} />
           <Route path="/legal" element={<MarketingPage page="compliance" />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/verify-email" element={<VerifyEmail />} />

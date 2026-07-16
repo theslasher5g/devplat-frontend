@@ -51,8 +51,6 @@ body {
   transition: all .18s ease;
 }
 .btn-ghost:hover { background: var(--ink); color:#fff; }
-.marquee { display:flex; gap:3rem; animation: marquee 26s linear infinite; white-space:nowrap; }
-@keyframes marquee { from { transform:translateX(0);} to { transform:translateX(-50%);} }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 .cursor-blink::after { content:'▌'; animation: blink 1s step-end infinite; color: var(--green); }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
@@ -61,6 +59,6 @@ body {
 .rise { animation: rise .6s cubic-bezier(.2,.7,.3,1) both; }
 .rise-1 { animation-delay:.05s } .rise-2 { animation-delay:.15s } .rise-3 { animation-delay:.25s } .rise-4 { animation-delay:.35s }
 @media (prefers-reduced-motion: reduce) {
-  .marquee, .rise, .pulse-dot, .cursor-blink::after { animation: none !important; }
+  .rise, .pulse-dot, .cursor-blink::after { animation: none !important; }
 }
 ::selection { background: var(--red); color:#fff; }

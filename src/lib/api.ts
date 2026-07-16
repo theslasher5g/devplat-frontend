@@ -65,6 +65,14 @@ export interface InvoiceInfo {
   currency: string; status: string | null; pdfUrl: string | null;
 }
 
+export interface EnvironmentInfo {
+  requestId: string;
+  status: 'queued' | 'assigned' | 'released' | 'failed';
+  vmId: string | null;
+  dockerEndpoint: string | null;
+  requestedAt: string;
+}
+
 export interface AdminOverview {
   totalTeams: number; activeSubscriptions: number; mrrChf: number;
   vmStarts7d: number; vmStartFailures7d: number; vmStartErrorRate7d: number | null;

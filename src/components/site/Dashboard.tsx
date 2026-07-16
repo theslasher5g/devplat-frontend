@@ -1,26 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { auditLog, imageCache, liveLog, parallelToday, runs, usageWeek } from '@/lib/demo';
 import {
   ApiError, api,
-  type ApiTokenInfo, type CreatedToken, type InvoiceInfo, type SubscriptionInfo, type TeamInfo,
+  type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type InvoiceInfo, type SubscriptionInfo, type TeamInfo,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo } from './Shared';
 
-type View = 'overview' | 'runs' | 'cache' | 'pipelines' | 'tokens' | 'billing' | 'team' | 'settings';
-const VIEWS: View[] = ['overview', 'runs', 'cache', 'pipelines', 'tokens', 'billing', 'team', 'settings'];
+type View = 'overview' | 'pipelines' | 'tokens' | 'billing' | 'team' | 'settings';
+const VIEWS: View[] = ['overview', 'pipelines', 'tokens', 'billing', 'team', 'settings'];
 
 const statusStyle: Record<string, string> = {
-  running: 'text-[#8AB8F0] border-[#8AB8F0]/40',
-  passed: 'text-[#57C99A] border-[#57C99A]/40',
+  assigned: 'text-[#57C99A] border-[#57C99A]/40',
   failed: 'text-[#F07A6A] border-[#F07A6A]/40',
-  queued: 'text-[--dark-muted] border-[--dark-line]',
+  queued: 'text-[#E8B44C] border-[#E8B44C]/40',
+  released: 'text-[--dark-muted] border-[--dark-line]',
 };
-const statusLabel: Record<string, string> = { running: 'running', passed: 'passed', failed: 'failed', queued: 'queued' };
 
 function Badge({ s }: { s: string }) {
-  return <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${statusStyle[s]}`}>{s === 'running' && <span className="pulse-dot mr-1">●</span>}{statusLabel[s]}</span>;
+  return <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${statusStyle[s] ?? 'text-[--dark-muted] border-[--dark-line]'}`}>{s === 'assigned' && <span className="pulse-dot mr-1">●</span>}{s}</span>;
 }
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -34,10 +32,6 @@ function CardHead({ title, right }: { title: string; right?: React.ReactNode }) 
       {right}
     </div>
   );
-}
-
-function SampleTag() {
-  return <span className="font-mono2 text-[10px] text-[#E8B44C] border border-[#E8B44C]/40 px-2 py-0.5">Sample data — live once the data plane ships</span>;
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -54,157 +48,43 @@ function fmtAgo(iso: string | null): string {
   return fmtDate(iso);
 }
 
-/* ---------- Views (runs/cache/pipelines stay on sample data until the data plane exists) ---------- */
+/* ---------- Overview: real environments from the scheduler ---------- */
 
-function Overview({ openRun, limit, planLabel }: { openRun: () => void; limit: number; planLabel: string }) {
-  const max = Math.max(...usageWeek.map((u) => u.mins));
+function Overview({ limit, planLabel, goView }: { limit: number; planLabel: string; goView: (v: View) => void }) {
+  const [envs, setEnvs] = useState<EnvironmentInfo[] | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState('');
+
+  const load = useCallback(() => {
+    api<{ environments: EnvironmentInfo[] }>('/environments')
+      .then((d) => { setEnvs(d.environments); setErr(''); })
+      .catch(() => setErr('Could not load environments.'));
+  }, []);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const release = async (id: string) => {
+    setBusy(id);
+    await api(`/environments/${id}`, { method: 'DELETE' }).catch(() => {});
+    setBusy('');
+    load();
+  };
+
+  const active = envs?.filter((e) => e.status === 'assigned').length ?? 0;
+  const queued = envs?.filter((e) => e.status === 'queued').length ?? 0;
+
   return (
     <div className="grid gap-5">
-      <div className="flex justify-end"><SampleTag /></div>
-      {/* KPI row */}
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Parallelism now', `3 / ${limit}`, 'environments active'],
-          ['Test runs today', '47', '↑ 12% vs. yesterday'],
-          ['Avg. container start', '0.8 s', 'from a warm snapshot'],
-          ['7-day success rate', '96.4%', '2 failed runs'],
+          ['Plan', planLabel, 'manage under Usage & billing'],
+          ['Parallelism limit', String(limit), `environment${limit === 1 ? '' : 's'} at once`],
+          ['Active now', envs ? String(active) : '—', 'assigned microVMs'],
+          ['Queued', envs ? String(queued) : '—', 'waiting for a free slot'],
         ].map(([k, v, s]) => (
-          <Card key={k as string} className="p-5">
-            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{k}</p>
-            <p className="font-doto text-4xl mt-2">{v}</p>
-            <p className="text-xs text-[--dark-muted] mt-1">{s}</p>
-          </Card>
-        ))}
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
-        <Card>
-          <CardHead title="Parallelism utilization · today" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">Limit: {limit} ({planLabel})</span>} />
-          <div className="p-5">
-            <div className="flex items-end gap-1 h-36">
-              {parallelToday.map((v, i) => (
-                <div key={i} className="flex-1 flex flex-col justify-end group relative">
-                  <div className={`${v >= limit ? 'bg-[--red]' : 'bg-[#57C99A]/70'} transition-all`} style={{ height: `${Math.min((v / Math.max(limit, 1)) * 100, 100)}%` }} title={`${i}:00 — ${v} environments`} />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between font-mono2 text-[10px] text-[--dark-muted] mt-2"><span>00:00</span><span>12:00</span><span>23:00</span></div>
-          </div>
-        </Card>
-        <Card>
-          <CardHead title="Test minutes · this week" />
-          <div className="p-5">
-            <div className="flex items-end gap-3 h-36">
-              {usageWeek.map((u) => (
-                <div key={u.day} className="flex-1 flex flex-col items-center gap-2 justify-end">
-                  <div className="w-full bg-[#8AB8F0]/60" style={{ height: `${(u.mins / max) * 100}%` }} />
-                  <span className="font-mono2 text-[10px] text-[--dark-muted]">{u.day}</span>
-                </div>
-              ))}
-            </div>
-            <p className="font-mono2 text-xs text-[--dark-muted] mt-3">Σ 1,706 min — flat rate, no extra cost.</p>
-          </div>
-        </Card>
-      </div>
-      <Card>
-        <CardHead title="Recent test runs" right={<button onClick={openRun} className="font-mono2 text-[10px] text-[#8AB8F0] hover:text-white">View live run →</button>} />
-        <div className="divide-y divide-[--dark-line]">
-          {runs.slice(0, 4).map((r) => (
-            <button key={r.id} onClick={openRun} className="w-full grid grid-cols-[1fr_auto] sm:grid-cols-[1.2fr_1fr_auto_auto] gap-3 items-center px-5 py-3.5 text-left hover:bg-white/[0.03]">
-              <div>
-                <p className="text-sm font-medium">{r.repo}</p>
-                <p className="font-mono2 text-[11px] text-[--dark-muted]">{r.branch} · {r.commit}</p>
-              </div>
-              <p className="hidden sm:block font-mono2 text-[11px] text-[--dark-muted]">{r.containers.join(' · ')}</p>
-              <p className="hidden sm:block font-mono2 text-[11px] text-[--dark-muted]">{r.duration}</p>
-              <Badge s={r.status} />
-            </button>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function RunDetail({ back }: { back: () => void }) {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (n >= liveLog.length) return;
-    const t = setTimeout(() => setN((v) => v + 1), n === 10 ? 1400 : 380);
-    return () => clearTimeout(t);
-  }, [n]);
-  const tone: Record<string, string> = { sys: 'text-[--dark-muted]', ok: 'text-[#57C99A]', img: 'text-[#E8B44C]', test: 'text-[#8AB8F0]' };
-  const r = runs[0];
-  return (
-    <div className="grid gap-5">
-      <button onClick={back} className="font-mono2 text-xs text-[--dark-muted] hover:text-white text-left">← All test runs</button>
-      <Card>
-        <CardHead title={`${r.repo} · ${r.branch}`} right={<Badge s={n >= liveLog.length ? 'passed' : 'running'} />} />
-        <div className="grid sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[--dark-line] font-mono2 text-xs">
-          {[['Trigger', r.trigger], ['Commit', r.commit], ['Region', r.region], ['microVM', 'vm_c8e2 · Firecracker']].map(([k, v]) => (
-            <div key={k} className="px-5 py-3"><p className="text-[--dark-muted] text-[10px] uppercase tracking-widest">{k}</p><p className="mt-1">{v}</p></div>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <CardHead title="Log stream" right={<span className="font-mono2 text-[10px] text-[--dark-muted]"><span className="text-[#57C99A] pulse-dot">●</span> live</span>} />
-        <div className="p-5 font-mono2 text-[12px] leading-relaxed h-80 overflow-y-auto">
-          {liveLog.slice(0, n).map((l, i) => (
-            <div key={i} className="flex gap-3"><span className="text-[--dark-muted] shrink-0">{l.t}</span><span className={tone[l.s]}>{l.m}</span></div>
-          ))}
-          {n < liveLog.length ? <div className="cursor-blink" /> : (
-            <div className="mt-3 border border-[#57C99A]/40 text-[#57C99A] p-3">✓ 48/48 tests passed · duration 1:38 · microVM destroyed, nothing persisted.</div>
-          )}
-        </div>
-      </Card>
-      <Card>
-        <CardHead title="Containers in this run" />
-        <div className="divide-y divide-[--dark-line]">
-          {[['postgres:16', 'Cache hit · start 0.37 s · port 5432'], ['redis:7', 'Cache hit · start 0.21 s · port 6379'], ['kafka:3.7', 'Cache hit · start 1.74 s · port 9092']].map(([a, b]) => (
-            <div key={a} className="flex justify-between px-5 py-3 font-mono2 text-xs"><span>{a}</span><span className="text-[--dark-muted]">{b}</span></div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function Runs({ openRun }: { openRun: () => void }) {
-  const [f, setF] = useState('all');
-  const list = useMemo(() => (f === 'all' ? runs : runs.filter((r) => r.status === f)), [f]);
-  return (
-    <div className="grid gap-5">
-      <div className="flex justify-end"><SampleTag /></div>
-      <Card>
-        <CardHead title={`Test runs (${list.length})`} right={
-          <div className="flex gap-1 font-mono2 text-[10px]">
-            {['all', 'running', 'passed', 'failed'].map((k) => (
-              <button key={k} onClick={() => setF(k)} className={`px-2 py-1 border ${f === k ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted] hover:text-white'}`}>{k === 'all' ? 'all' : statusLabel[k]}</button>
-            ))}
-          </div>
-        } />
-        <div className="divide-y divide-[--dark-line]">
-          {list.map((r) => (
-            <button key={r.id} onClick={openRun} className="w-full grid grid-cols-[1fr_auto] md:grid-cols-[110px_1.2fr_1fr_100px_90px_auto] gap-3 items-center px-5 py-3.5 text-left hover:bg-white/[0.03] font-mono2 text-xs">
-              <span className="text-[--dark-muted] hidden md:block">{r.id}</span>
-              <span className="font-sans text-sm font-medium">{r.repo}<span className="block md:hidden font-mono2 text-[11px] text-[--dark-muted] font-normal">{r.branch}</span></span>
-              <span className="text-[--dark-muted] hidden md:block">{r.containers.join(' · ')}</span>
-              <span className="text-[--dark-muted] hidden md:block">{r.trigger}</span>
-              <span className="text-[--dark-muted] hidden md:block">{r.duration}</span>
-              <Badge s={r.status} />
-            </button>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function Cache() {
-  return (
-    <div className="grid gap-5">
-      <div className="flex justify-end"><SampleTag /></div>
-      <div className="grid gap-5 sm:grid-cols-3">
-        {[['Cache hit rate', '98.7%', 'last 7 days'], ['Transfer volume saved', '412 GB', 'this month'], ['Snapshot images', '5 + 5', 'warm + standard']].map(([k, v, s]) => (
           <Card key={k} className="p-5">
             <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{k}</p>
             <p className="font-doto text-4xl mt-2">{v}</p>
@@ -213,20 +93,42 @@ function Cache() {
         ))}
       </div>
       <Card>
-        <CardHead title="Image cache" right={<button className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">+ Add custom image</button>} />
+        <CardHead title="Environments" right={
+          <button onClick={load} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Refresh</button>
+        } />
         <div className="divide-y divide-[--dark-line]">
-          {imageCache.map((i) => (
-            <div key={i.name + i.tag} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_90px_90px_auto_auto] gap-3 items-center px-5 py-3 font-mono2 text-xs">
-              <span className="text-sm">{i.name}:<span className="text-[--dark-muted]">{i.tag}</span></span>
-              <span className="text-[--dark-muted] hidden sm:block">{i.size}</span>
-              <span className="text-[--dark-muted] hidden sm:block">{i.hits}× hits</span>
-              <span className={`hidden sm:block ${i.warm ? 'text-[#57C99A]' : 'text-[#E8B44C]'}`}>{i.warm ? '● warm' : '○ cold'}</span>
-              <span className={i.snapshot ? 'text-[#8AB8F0]' : 'text-[--dark-muted]'}>{i.snapshot ? '⚡ Snapshot' : '— Registry'}</span>
+          {envs === null && !err && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+          {err && <p className="px-5 py-4 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+          {envs?.length === 0 && (
+            <div className="px-5 py-8">
+              <p className="text-sm text-[--dark-muted]">
+                No environments running. Your test runs will show up here from the first{' '}
+                <span className="font-mono2 text-white">devplat connect</span> on.
+              </p>
+              <ol className="mt-5 space-y-2 font-mono2 text-xs text-[--dark-muted]">
+                <li>1 · <button onClick={() => goView('tokens')} className="text-white hover:text-[#8AB8F0]">Create an API token</button> for your CI or laptop</li>
+                <li>2 · Install the CLI: <span className="text-white">curl -sf https://get.devplat.dev | sh</span></li>
+                <li>3 · <span className="text-white">devplat connect</span> — then run your tests as usual</li>
+              </ol>
+            </div>
+          )}
+          {envs?.map((e) => (
+            <div key={e.requestId} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.3fr_1fr_110px_auto_auto] gap-3 items-center px-5 py-3.5 font-mono2 text-xs">
+              <div>
+                <p className="font-sans text-sm font-medium">{e.vmId ?? 'waiting for slot'}</p>
+                <p className="text-[11px] text-[--dark-muted]">{e.requestId}</p>
+              </div>
+              <span className="text-[--dark-muted] hidden sm:block break-all">{e.dockerEndpoint ?? '—'}</span>
+              <span className="text-[--dark-muted] hidden sm:block">{fmtAgo(e.requestedAt)}</span>
+              <Badge s={e.status} />
+              <button onClick={() => release(e.requestId)} disabled={busy === e.requestId}
+                className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10 disabled:opacity-50">
+                {busy === e.requestId ? '…' : 'Release'}
+              </button>
             </div>
           ))}
         </div>
       </Card>
-      <p className="font-mono2 text-[11px] text-[--dark-muted]">⚡ Snapshot = Firecracker resume in milliseconds. ● warm = in the local registry proxy, served in &lt; 1 s.</p>
     </div>
   );
 }
@@ -547,7 +449,7 @@ function Team() {
   if (!info) return <p className="font-mono2 text-xs text-[--dark-muted]">Loading …</p>;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
+    <div className="grid gap-5 max-w-4xl">
       <div className="grid gap-5">
         <Card>
           <CardHead title={`Members (${info.members.length})`} right={
@@ -601,17 +503,6 @@ function Team() {
           </Card>
         )}
       </div>
-      <Card className="h-fit">
-        <CardHead title="Audit log" right={<SampleTag />} />
-        <div className="divide-y divide-[--dark-line]">
-          {auditLog.map((a, i) => (
-            <div key={i} className="px-5 py-3 text-xs">
-              <p className="font-mono2 text-[--dark-muted]">{a.when} · {a.who}</p>
-              <p className="mt-0.5">{a.what}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }
@@ -643,15 +534,6 @@ function Settings({ teamName, onRenamed }: { teamName: string; onRenamed: () => 
           {msg && <p className="font-mono2 text-xs text-[--dark-muted] sm:col-span-2">{msg}</p>}
         </div>
       </Card>
-      <Card>
-        <CardHead title="Environment defaults" right={<SampleTag />} />
-        <div className="p-5 space-y-5 text-sm">
-          <div className="flex items-center justify-between">
-            <div><p>Hard TTL per microVM</p><p className="text-xs text-[--dark-muted]">Configurable once the data plane ships.</p></div>
-            <span className="font-doto text-2xl">60 min</span>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }
@@ -662,7 +544,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { view: viewParam } = useParams<{ view: string }>();
   const view: View = VIEWS.includes(viewParam as View) ? (viewParam as View) : 'overview';
-  const [runOpen, setRunOpen] = useState(false);
   const { me, refresh, logout } = useAuth();
   const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
 
@@ -670,22 +551,20 @@ export default function Dashboard() {
     api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => setTeamInfo(null));
   }, [me?.team?.id]);
 
-  const setView = (v: View) => { setRunOpen(false); navigate(v === 'overview' ? '/app' : `/app/${v}`); };
+  const setView = (v: View) => navigate(v === 'overview' ? '/app' : `/app/${v}`);
   const signOut = async () => { await logout(); navigate('/'); };
 
   const items: { key: View; label: string; icon: string }[] = [
-    { key: 'overview', label: 'Overview', icon: '▦' },
-    { key: 'runs', label: 'Test runs', icon: '▶' },
+    { key: 'overview', label: 'Environments', icon: '▦' },
     { key: 'pipelines', label: 'CI pipelines', icon: '⛓' },
-    { key: 'cache', label: 'Image cache', icon: '⚡' },
     { key: 'tokens', label: 'API tokens', icon: '⌘' },
     { key: 'billing', label: 'Usage & billing', icon: '▤' },
-    { key: 'team', label: 'Team & audit', icon: '◉' },
+    { key: 'team', label: 'Team', icon: '◉' },
     { key: 'settings', label: 'Settings', icon: '⚙' },
   ];
   const titles: Record<View, string> = {
-    overview: 'Overview', runs: 'Test runs', pipelines: 'CI pipelines', cache: 'Image cache',
-    tokens: 'API tokens', billing: 'Usage & billing', team: 'Team & audit', settings: 'Settings',
+    overview: 'Environments', pipelines: 'CI pipelines',
+    tokens: 'API tokens', billing: 'Usage & billing', team: 'Team', settings: 'Settings',
   };
 
   const teamName = teamInfo?.team.name ?? me?.team?.name ?? '—';
@@ -752,11 +631,8 @@ export default function Dashboard() {
           ))}
         </div>
         <main className="p-5 lg:p-8">
-          {view === 'overview' && !runOpen && <Overview openRun={() => setRunOpen(true)} limit={limit} planLabel={planLabel} />}
-          {view === 'runs' && !runOpen && <Runs openRun={() => setRunOpen(true)} />}
-          {runOpen && <RunDetail back={() => setRunOpen(false)} />}
+          {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}
           {view === 'pipelines' && <Pipelines />}
-          {view === 'cache' && <Cache />}
           {view === 'tokens' && <Tokens />}
           {view === 'billing' && <Billing />}
           {view === 'team' && <Team />}

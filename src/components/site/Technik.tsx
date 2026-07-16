@@ -82,22 +82,33 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
             <Layer n="3" sub="Zurich" title="Data plane — Firecracker microVMs" dark
               items={['One VM per test run, a real Docker daemon inside', '~150 ms boot, snapshots for top images', 'KVM isolation instead of container tricks', 'After the run: VM & storage destroyed']} />
           </div>
-          {/* flow line */}
-          <div className="mt-10 border hairline bg-white p-6 overflow-x-auto">
-            <p className="eyebrow mb-4">Data flow of a test run</p>
-            <div className="font-mono2 text-xs whitespace-nowrap flex items-center gap-3 text-[--ink-soft]">
-              <span className="border hairline px-3 py-2 text-[--ink]">your test code</span>
-              <span className="text-[--red]">──mTLS──▶</span>
-              <span className="border hairline px-3 py-2 text-[--ink]">devplat CLI</span>
-              <span className="text-[--red]">──▶</span>
-              <span className="border hairline px-3 py-2 text-[--ink]">scheduler</span>
-              <span className="text-[--red]">──▶</span>
-              <span className="bg-[--ink] text-[--dark-text] px-3 py-2">microVM · dockerd</span>
-              <span className="text-[--red]">──▶</span>
-              <span className="border hairline px-3 py-2 text-[--ink]">postgres · redis · kafka</span>
-              <span className="text-[--ink-soft]">── after 1:38 ──▶</span>
-              <span className="border border-[--red] text-[--red] px-3 py-2">destroyed ✕</span>
-            </div>
+          {/* flow: vertical stepper — every step visible, nothing to scroll */}
+          <div className="mt-10 border hairline bg-white p-6 md:p-10">
+            <p className="eyebrow mb-8">Data flow of a test run</p>
+            <ol className="max-w-3xl">
+              {[
+                ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'mTLS tunnel to Zurich'],
+                ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a mutually authenticated TLS tunnel to the control plane.', ''],
+                ['scheduler', 'Checks your plan’s parallelism limit and assigns the run to a free microVM. If everything is busy, the run queues briefly instead of failing.', ''],
+                ['microVM · dockerd', 'A dedicated Firecracker VM with a real Docker daemon inside — isolated from every other customer by a KVM boundary, not by namespaces.', ''],
+                ['postgres · redis · kafka', 'Your containers start from the warm image cache, typically in under a second. Ports are mapped back through the tunnel transparently.', 'run finishes — here after 1:38'],
+              ].map(([title, desc, edge], i) => (
+                <li key={title} className="relative pl-12 pb-8 last:pb-0">
+                  <span className="absolute left-0 top-0 w-8 h-8 grid place-items-center border hairline bg-white font-doto text-sm">{i + 1}</span>
+                  <span className="absolute left-4 top-8 bottom-0 border-l hairline" aria-hidden />
+                  <p className="font-mono2 text-sm text-[--ink] pt-1.5">{title}</p>
+                  <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">{desc}</p>
+                  {edge && <p className="mt-3 font-mono2 text-[11px] text-[--red]">↓ {edge}</p>}
+                </li>
+              ))}
+              <li className="relative pl-12">
+                <span className="absolute left-0 top-0 w-8 h-8 grid place-items-center border border-[--red] text-[--red] font-doto text-sm">✕</span>
+                <p className="font-mono2 text-sm text-[--red] pt-1.5">destroyed</p>
+                <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">
+                  The microVM and its storage are wiped the moment the run ends. Nothing persists, nothing is reused.
+                </p>
+              </li>
+            </ol>
           </div>
         </div>
       </section>
@@ -159,8 +170,11 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
 
       <section className="bg-[--ink] text-[--dark-text]">
         <div className="mx-auto max-w-6xl px-5 py-16 md:flex items-center justify-between gap-8">
-          <p className="text-2xl font-semibold max-w-[30ch]">Enough theory. The dashboard shows a test run live.</p>
-          <button onClick={() => go('auth')} className="mt-6 md:mt-0 bg-white text-[--ink] px-6 py-3 font-medium hover:bg-[--red] hover:text-white transition-colors shrink-0">Open the demo dashboard</button>
+          <p className="text-2xl font-semibold max-w-[30ch]">Enough theory. Point your next test run at Zurich.</p>
+          <div className="mt-6 md:mt-0 flex gap-3 shrink-0">
+            <button onClick={() => go('download')} className="bg-white text-[--ink] px-6 py-3 font-medium hover:bg-[--red] hover:text-white transition-colors">Install the CLI</button>
+            <button onClick={() => go('auth')} className="border border-[--dark-line] px-6 py-3 hover:border-white transition-colors">Create an account</button>
+          </div>
         </div>
       </section>
     </main>

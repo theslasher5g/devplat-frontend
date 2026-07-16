@@ -29,24 +29,6 @@ export default function Home({ go }: { go: (p: Page) => void }) {
         </div>
       </section>
 
-      {/* MARQUEE */}
-      <section className="border-b hairline overflow-hidden py-4 bg-[--ink] text-[--dark-text]">
-        <div className="marquee font-mono2 text-xs tracking-widest uppercase">
-          {[0, 1].map((k) => (
-            <span key={k} className="flex gap-12 shrink-0">
-              <span>postgres:16 — warm</span><span className="text-[--red]">●</span>
-              <span>mariadb:11.4 — warm</span><span className="text-[--red]">●</span>
-              <span>redis:7 — warm</span><span className="text-[--red]">●</span>
-              <span>kafka:3.7 — warm</span><span className="text-[--red]">●</span>
-              <span>localstack:3 — warm</span><span className="text-[--red]">●</span>
-              <span>elasticsearch:8.13 — warm</span><span className="text-[--red]">●</span>
-              <span>rabbitmq:3.13 — warm</span><span className="text-[--red]">●</span>
-              <span>mongo:7 — warm</span><span className="text-[--red]">●</span>
-            </span>
-          ))}
-        </div>
-      </section>
-
       {/* PROBLEM / SOLUTION */}
       <section className="border-b hairline">
         <div className="mx-auto max-w-6xl px-5 py-20 grid gap-12 md:grid-cols-2">
@@ -111,8 +93,9 @@ $ mvn verify   # unchanged.`}</pre>
               <p className="eyebrow" style={{ color: 'var(--dark-muted)' }}>Flat, not metered</p>
               <h3 className="mt-3 text-xl font-semibold">You pay for parallelism, not minutes.</h3>
               <p className="mt-2 text-sm text-[--dark-muted] max-w-[52ch]">
-                Up to X concurrent environments for Y francs a month. Your invoice in January looks
-                the same as in December — no matter how often your team pushes.
+                Plans from CHF 29 to CHF 199 a month, sized by concurrent environments — never by
+                minutes. Your invoice in January looks the same as in December, no matter how often
+                your team pushes.
               </p>
             </div>
           </div>
