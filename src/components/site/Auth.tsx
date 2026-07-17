@@ -170,11 +170,12 @@ export default function Auth() {
 export function VerifyEmail() {
   const [params] = useSearchParams();
   const [state, setState] = useState<'working' | 'done' | 'failed'>('working');
+  const [joinedTeam, setJoinedTeam] = useState(false);
   useEffect(() => {
     const token = params.get('token');
     if (!token) { setState('failed'); return; }
-    api('/auth/verify-email', { body: { token } })
-      .then(() => setState('done'))
+    api<{ ok: boolean; joinedTeamIds: string[] }>('/auth/verify-email', { body: { token } })
+      .then((res) => { setJoinedTeam(res.joinedTeamIds.length > 0); setState('done'); })
       .catch(() => setState('failed'));
   }, [params]);
   return (
@@ -184,7 +185,11 @@ export function VerifyEmail() {
       {state === 'done' && (
         <>
           <h1 className="text-3xl font-semibold tracking-tight">Email confirmed.</h1>
-          <p className="mt-2 text-sm text-[--ink-soft]">Your account is active — you can sign in now.</p>
+          <p className="mt-2 text-sm text-[--ink-soft]">
+            {joinedTeam
+              ? 'Your account is active and you\'ve joined your team — sign in to open the dashboard.'
+              : 'Your account is active — you can sign in now.'}
+          </p>
           <Link to="/auth" className="btn-ink inline-block mt-8 px-8 py-3 text-sm">Sign in</Link>
         </>
       )}
@@ -247,7 +252,7 @@ export function ResetPassword() {
 
 /* ---------- /invite?token=… ---------- */
 
-interface InviteDetails { email: string; role: string; teamName: string; accountExists: boolean }
+interface InviteDetails { email: string; role: string; teamName: string; accountExists: boolean; alreadyAccepted: boolean }
 
 export function InviteAccept() {
   const [params] = useSearchParams();
@@ -304,7 +309,8 @@ export function InviteAccept() {
         <>
           <h1 className="text-3xl font-semibold tracking-tight">Almost there.</h1>
           <p className="mt-2 text-sm text-[--ink-soft]">
-            Account created. Confirm your email address (check your inbox), sign in, and open this invitation link again to join the team.
+            Account created. Confirm your email address (check your inbox) — that's the last step,
+            you'll be added to the team automatically. Then sign in.
           </p>
           <Link to="/auth" className="btn-ink inline-block mt-8 px-8 py-3 text-sm">Go to sign-in</Link>
         </>
@@ -316,7 +322,18 @@ export function InviteAccept() {
           <Link to="/app" className="btn-ink inline-block mt-8 px-8 py-3 text-sm">Open dashboard</Link>
         </>
       )}
-      {state === 'ready' && invite && !accountCreated && (
+      {state === 'ready' && invite && invite.alreadyAccepted && (
+        <>
+          <h1 className="text-3xl font-semibold tracking-tight">You're already in.</h1>
+          <p className="mt-2 text-sm text-[--ink-soft]">
+            This invitation to {invite.teamName} was already accepted — no need to do anything else here.
+          </p>
+          <Link to={me ? '/app' : '/auth'} className="btn-ink inline-block mt-8 px-8 py-3 text-sm">
+            {me ? 'Open dashboard' : 'Sign in'}
+          </Link>
+        </>
+      )}
+      {state === 'ready' && invite && !invite.alreadyAccepted && !accountCreated && (
         <>
           <h1 className="text-3xl font-semibold tracking-tight">Join {invite.teamName}.</h1>
           <p className="mt-2 text-sm text-[--ink-soft]">
