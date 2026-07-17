@@ -58,7 +58,18 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               <p className={`mt-2 text-sm ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{t.tagline}</p>
               <p className="mt-3 font-mono2 text-[11px]" style={t.hot ? { color: 'var(--dark-muted)' } : { color: 'var(--ink-soft)' }}>up to {t.vcpu} vCPU / {t.ramGb} GB per environment</p>
               <ul className={`mt-5 space-y-2 text-sm flex-1 ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>
-                {t.features.map((f) => <li key={f} className="flex gap-2"><span className="text-[--red]">—</span>{f}</li>)}
+                {t.features.map((f) => {
+                  const [label, soon] = f.split(' — coming soon');
+                  return (
+                    <li key={f} className="flex gap-2">
+                      <span className="text-[--red]">—</span>
+                      <span>
+                        {label}
+                        {soon === '' && <span className="ml-1.5 font-mono2 text-[10px] uppercase tracking-wider text-[#E8B44C]">Coming soon</span>}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
               <button onClick={() => go('auth')} className={`mt-6 py-2.5 text-sm font-medium transition-colors ${t.hot ? 'bg-white text-[--ink] hover:bg-[--red] hover:text-white' : 'btn-ink'}`}>
                 Choose {t.name}

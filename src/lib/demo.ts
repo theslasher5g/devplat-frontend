@@ -30,6 +30,6 @@ export const tiers = [
   },
   {
     name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12, tagline: 'For multiple teams and monorepos.',
-    features: ['8 parallel environments', 'up to 6 vCPU / 12 GB per environment', 'Priority scheduling', 'Audit log & SSO (SAML)', 'Latency SLA 99.5 %', 'Support < 4 h'],
+    features: ['8 parallel environments', 'up to 6 vCPU / 12 GB per environment', 'Priority scheduling', 'Audit log', 'SSO (SAML) — coming soon', 'Latency SLA 99.5 %', 'Support < 4 h'],
   },
 ];
