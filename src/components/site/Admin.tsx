@@ -32,7 +32,7 @@ function UtilBar({ used, total, unit }: { used: number; total: number; unit: str
   const color = pct >= 85 ? 'bg-[--red]' : pct >= 60 ? 'bg-[#E8B44C]' : 'bg-[#57C99A]/80';
   return (
     <div>
-      <div className="h-2 bg-white/[0.06] border border-[--dark-line]">
+      <div className="h-2 bg-white/[0.12] border border-[--dark-line]">
         <div className={`h-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
       <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">{used} / {total} {unit} ({pct}%)</p>
@@ -49,6 +49,61 @@ const hostStatusStyle: Record<string, string> = {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-CH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function EditHostModal({ host, onCancel, onSaved }: { host: AdminHost; onCancel: () => void; onSaved: (h: AdminHost) => void }) {
+  const [cpu, setCpu] = useState(String(host.cpu.total));
+  const [ramGb, setRamGb] = useState(String(Math.round(host.ramMb.total / 1000)));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const cpuTotal = Number(cpu);
+  const ramTotalMb = Number(ramGb) * 1000;
+  const valid = Number.isInteger(cpuTotal) && cpuTotal > 0 && Number.isFinite(ramTotalMb) && ramTotalMb > 0;
+
+  async function handleSave() {
+    if (!valid || busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/admin/hosts/${host.id}`, { method: 'PATCH', body: { cpuTotal, ramTotalMb } });
+      onSaved({ ...host, cpu: { ...host.cpu, total: cpuTotal }, ramMb: { ...host.ramMb, total: ramTotalMb } });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Save failed.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center px-5" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--dark-line] max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Edit capacity</p>
+        <h3 className="mt-2 font-semibold text-lg">{host.name}</h3>
+        <div className="mt-5 grid gap-4">
+          <label className="block">
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Total vCPU</span>
+            <input value={cpu} onChange={(e) => setCpu(e.target.value)} type="number" min="1"
+              className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 focus:outline-none focus:border-white" />
+          </label>
+          <label className="block">
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Total RAM (GB)</span>
+            <input value={ramGb} onChange={(e) => setRamGb(e.target.value)} type="number" min="1"
+              className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 focus:outline-none focus:border-white" />
+          </label>
+        </div>
+        {err && <p className="mt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={!valid || busy}
+            className="font-mono2 text-xs px-4 py-2 border border-white hover:bg-white hover:text-[--dark] disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function DeleteTeamModal({ team, onCancel, onDeleted }: { team: AdminTeam; onCancel: () => void; onDeleted: (id: string) => void }) {
@@ -113,6 +168,7 @@ export default function Admin() {
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [err, setErr] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminTeam | null>(null);
+  const [editHost, setEditHost] = useState<AdminHost | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -178,9 +234,14 @@ export default function Admin() {
                   <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">RAM</p>
                   <UtilBar used={Math.round(h.ramMb.used / 1024)} total={Math.round(h.ramMb.total / 1024)} unit="GB" />
                 </div>
-                <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 justify-self-end ${hostStatusStyle[h.status]}`}>
-                  {h.status === 'online' && <span className="pulse-dot mr-1">●</span>}{h.status}
-                </span>
+                <div className="flex items-center gap-2 justify-self-end">
+                  <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${hostStatusStyle[h.status]}`}>
+                    {h.status === 'online' && <span className="pulse-dot mr-1">●</span>}{h.status}
+                  </span>
+                  <button onClick={() => setEditHost(h)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
+                    Edit
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -255,6 +316,14 @@ export default function Admin() {
           team={deleteTarget}
           onCancel={() => setDeleteTarget(null)}
           onDeleted={(id) => { setTeams((prev) => prev.filter((t) => t.id !== id)); setDeleteTarget(null); }}
+        />
+      )}
+
+      {editHost && (
+        <EditHostModal
+          host={editHost}
+          onCancel={() => setEditHost(null)}
+          onSaved={(updated) => { setHosts((prev) => prev.map((h) => (h.id === updated.id ? updated : h))); setEditHost(null); }}
         />
       )}
     </div>
