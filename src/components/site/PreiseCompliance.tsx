@@ -83,6 +83,11 @@ export function Preise({ go }: { go: (p: Page) => void }) {
         <div className="mx-auto max-w-6xl px-5 py-20">
           <Eyebrow>The honest comparison</Eyebrow>
           <h2 className="text-3xl font-semibold tracking-tight">devplat vs. Testcontainers Cloud</h2>
+          <p className="mt-3 text-sm text-[--ink-soft] max-w-[70ch]">
+            The direct commercial alternative — Docker's own hosted Testcontainers. If you're
+            instead weighing this against bigger or self-hosted CI runners, that comparison lives on
+            the <button onClick={() => go('technik')} className="underline underline-offset-2 hover:text-[--ink]">How it works</button> page.
+          </p>
           <div className="mt-8 overflow-x-auto border hairline">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
@@ -94,12 +99,10 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               </thead>
               <tbody className="text-[--ink-soft]">
                 {[
-                  ['Pricing model', 'Flat by parallelism — predictable', 'Minute bundles + overages'],
+                  ['Pricing model', 'Flat by parallelism + a fixed resource cap', 'Minute bundles + overages'],
                   ['Docker subscription required', 'No', 'Tied to Docker plans'],
-                  ['Hosting', 'Basel, Switzerland — own hardware', 'US cloud'],
-                  ['Privacy basis', 'Swiss FADP + GDPR, DPA included', 'US provider, DPF-dependent'],
                   ['Custom images in the cache', 'Yes (from Team)', 'Limited'],
-                  ['Contract & support', 'Direct, human support', 'Enterprise sales'],
+                  ['Contract & support', 'Direct, human support — a real DPA', 'Enterprise sales'],
                 ].map(([a, b, c]) => (
                   <tr key={a} className="border-b hairline last:border-0">
                     <td className="p-4 font-medium text-[--ink]">{a}</td>
