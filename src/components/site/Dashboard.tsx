@@ -530,7 +530,73 @@ function Team() {
   );
 }
 
-function Settings({ teamName, onRenamed }: { teamName: string; onRenamed: () => void }) {
+function DeleteTeamCard({ teamName }: { teamName: string }) {
+  const navigate = useNavigate();
+  const { refresh } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const ready = confirmText.trim().toLowerCase() === 'delete';
+
+  const handleDelete = async () => {
+    if (!ready || busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api('/teams/me', { method: 'DELETE' });
+      await refresh();
+      navigate('/');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Delete failed.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="border-[--red]/40">
+      <CardHead title="Danger zone" />
+      <div className="p-5">
+        <h3 className="font-semibold text-sm text-[--red]">Delete "{teamName}"</h3>
+        <p className="mt-2 text-sm text-[--dark-muted] max-w-[60ch]">
+          Permanently deletes the team, cancels any active subscription, and removes every member's
+          account (unless they also belong to another team). This cannot be undone.
+        </p>
+        {!open ? (
+          <button onClick={() => setOpen(true)} className="mt-4 font-mono2 text-[10px] border border-[--red]/60 text-[--red] px-4 py-2.5 hover:bg-[--red] hover:text-white">
+            Delete team…
+          </button>
+        ) : (
+          <div className="mt-4 border border-[--red]/40 bg-black/20 p-4 max-w-sm">
+            <label className="block">
+              <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Type "delete" to confirm</span>
+              <input
+                autoFocus
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 focus:outline-none focus:border-[--red]"
+                placeholder="delete"
+              />
+            </label>
+            {err && <p className="mt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+            <div className="mt-4 flex gap-3 justify-end">
+              <button onClick={() => { setOpen(false); setConfirmText(''); setErr(''); }} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+              <button
+                onClick={handleDelete}
+                disabled={!ready || busy}
+                className="font-mono2 text-xs px-4 py-2 bg-[--red] text-white disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {busy ? 'Deleting…' : 'Delete team'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 'owner' | 'admin' | 'developer'; onRenamed: () => void }) {
   const [name, setName] = useState(teamName);
   const [msg, setMsg] = useState('');
   const rename = async () => {
@@ -557,6 +623,7 @@ function Settings({ teamName, onRenamed }: { teamName: string; onRenamed: () => 
           {msg && <p className="font-mono2 text-xs text-[--dark-muted] sm:col-span-2">{msg}</p>}
         </div>
       </Card>
+      {myRole === 'owner' && <DeleteTeamCard teamName={teamName} />}
     </div>
   );
 }
@@ -664,7 +731,7 @@ export default function Dashboard() {
           {view === 'billing' && <Billing />}
           {view === 'team' && <Team />}
           {view === 'settings' && (
-            <Settings teamName={teamName} onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
+            <Settings teamName={teamName} myRole={teamInfo?.team.myRole} onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
           )}
         </main>
       </div>
