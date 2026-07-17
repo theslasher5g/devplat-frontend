@@ -66,6 +66,7 @@ export default function Auth() {
   const [teamName, setTeamName] = useState('');
   const [mail, setMail] = useState('');
   const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
   const [err, setErr] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -83,6 +84,7 @@ export default function Auth() {
     setNotice('');
     if (!mail.includes('@')) { setErr('Please enter a valid email address.'); return; }
     if (mode !== 'forgot' && !pw) { setErr('Please enter a password.'); return; }
+    if (mode === 'register' && pw !== pw2) { setErr('Passwords do not match.'); return; }
     setBusy(true);
     try {
       if (mode === 'login') {
@@ -120,8 +122,8 @@ export default function Auth() {
   return (
     <AuthShell>
       <div className="inline-flex border hairline bg-white font-mono2 text-xs mb-8">
-        <button onClick={() => { setMode('login'); setErr(''); setNotice(''); }} className={`px-4 py-2 ${mode === 'login' ? 'bg-[--ink] text-white' : 'text-[--ink-soft]'}`}>Sign in</button>
-        <button onClick={() => { setMode('register'); setErr(''); setNotice(''); }} className={`px-4 py-2 ${mode === 'register' ? 'bg-[--ink] text-white' : 'text-[--ink-soft]'}`}>Register</button>
+        <button onClick={() => { setMode('login'); setErr(''); setNotice(''); setPw2(''); }} className={`px-4 py-2 ${mode === 'login' ? 'bg-[--ink] text-white' : 'text-[--ink-soft]'}`}>Sign in</button>
+        <button onClick={() => { setMode('register'); setErr(''); setNotice(''); setPw2(''); }} className={`px-4 py-2 ${mode === 'register' ? 'bg-[--ink] text-white' : 'text-[--ink-soft]'}`}>Register</button>
       </div>
       <h1 className="text-3xl font-semibold tracking-tight">
         {mode === 'login' ? 'Welcome back.' : mode === 'register' ? 'Create an account.' : 'Reset password.'}
@@ -134,11 +136,14 @@ export default function Auth() {
 
       <div className="mt-8 space-y-4">
         {mode === 'register' && (
-          <Field label="Organization" type="text" value={teamName} onChange={setTeamName} placeholder="acme" />
+          <Field label="Organization" type="text" value={teamName} onChange={setTeamName} placeholder="Your team name" />
         )}
         <Field label="Email" type="email" value={mail} onChange={setMail} autoFocus />
         {mode !== 'forgot' && (
           <Field label={mode === 'register' ? 'Password (min. 10 characters)' : 'Password'} type="password" value={pw} onChange={setPw} />
+        )}
+        {mode === 'register' && (
+          <Field label="Confirm password" type="password" value={pw2} onChange={setPw2} />
         )}
         {err && <p className="text-sm text-[--red]">{err}</p>}
         {notice === 'resend' ? (
@@ -153,7 +158,7 @@ export default function Auth() {
           <button onClick={() => { setMode('forgot'); setErr(''); setNotice(''); }} className="text-xs text-[--ink-soft] hover:text-[--ink] underline underline-offset-4">Forgot password?</button>
         )}
         {mode === 'forgot' && (
-          <button onClick={() => { setMode('login'); setErr(''); setNotice(''); }} className="text-xs text-[--ink-soft] hover:text-[--ink] underline underline-offset-4">← Back to sign-in</button>
+          <button onClick={() => { setMode('login'); setErr(''); setNotice(''); setPw2(''); }} className="text-xs text-[--ink-soft] hover:text-[--ink] underline underline-offset-4">← Back to sign-in</button>
         )}
       </div>
     </AuthShell>

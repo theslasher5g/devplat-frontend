@@ -90,5 +90,5 @@ export interface AdminHost {
 export interface AdminTeam {
   id: string; name: string; planTier: string; planLabel: string; mrrChf: number;
   subscriptionStatus: string | null; currentPeriodEnd: string | null;
-  members: number; vmStarts30d: number; createdAt: string;
+  members: number; vmStarts30d: number; createdAt: string; ownerVerified: boolean;
 }

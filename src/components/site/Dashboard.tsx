@@ -1,11 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ApiError, api,
+  API_URL, ApiError, api,
   type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type InvoiceInfo, type SubscriptionInfo, type TeamInfo,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo } from './Shared';
+
+/** Pings the real /health endpoint instead of showing a hardcoded "operational". */
+function useApiHealth(): boolean | null {
+  const [ok, setOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () => api('/health').then(() => { if (alive) setOk(true); }).catch(() => { if (alive) setOk(false); });
+    check();
+    const t = setInterval(check, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  return ok;
+}
 
 type View = 'overview' | 'pipelines' | 'tokens' | 'billing' | 'team' | 'settings';
 const VIEWS: View[] = ['overview', 'pipelines', 'tokens', 'billing', 'team', 'settings'];
@@ -134,11 +147,12 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
 }
 
 function Pipelines() {
-  const [repo, setRepo] = useState('acme/payment-service');
+  const [repo, setRepo] = useState('');
   const [ci, setCi] = useState<'GitHub Actions' | 'GitLab CI'>('GitHub Actions');
   const [copied, setCopied] = useState(false);
+  const repoComment = repo.trim() ? `${repo.trim()} · ` : '';
   const yaml = ci === 'GitHub Actions'
-    ? `# ${repo} · .github/workflows/ci.yml
+    ? `# ${repoComment}.github/workflows/ci.yml
 jobs:
   integration-tests:
     runs-on: ubuntu-latest
@@ -148,7 +162,7 @@ jobs:
         with:
           token: \${{ secrets.DEVPLAT_TOKEN }}
       - run: mvn verify`
-    : `# ${repo} · .gitlab-ci.yml
+    : `# ${repoComment}.gitlab-ci.yml
 integration-tests:
   before_script:
     - curl -sf https://get.devplat.dev | sh
@@ -161,7 +175,8 @@ integration-tests:
         <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted] mb-4">Pipeline snippet generator</p>
         <label className="block mb-4">
           <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">Repository</span>
-          <input value={repo} onChange={(e) => setRepo(e.target.value)} className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
+          <input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="your-org/your-repo"
+            className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
         </label>
         <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">CI system</span>
         <div className="flex gap-1 mt-1.5 font-mono2 text-xs">
@@ -211,9 +226,14 @@ function Tokens() {
   };
 
   const revoke = async (id: string) => {
-    await api(`/tokens/${id}`, { method: 'DELETE' }).catch(() => {});
-    if (created?.id === id) setCreated(null);
-    load();
+    setErr('');
+    try {
+      await api(`/tokens/${id}`, { method: 'DELETE' });
+      if (created?.id === id) setCreated(null);
+      load();
+    } catch {
+      setErr('Could not revoke this token — please try again.');
+    }
   };
 
   return (
@@ -241,7 +261,7 @@ function Tokens() {
           <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto_auto] items-end">
             <label className="block">
               <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">Label</span>
-              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="GitHub Actions · payment-service"
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="GitHub Actions · CI"
                 className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
             </label>
             <div>
@@ -476,7 +496,7 @@ function Team() {
             <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto_auto] items-end">
               <label className="block">
                 <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">Email</span>
-                <input value={inviteMail} onChange={(e) => setInviteMail(e.target.value)} type="email" placeholder="colleague@acme.dev"
+                <input value={inviteMail} onChange={(e) => setInviteMail(e.target.value)} type="email" placeholder="colleague@yourcompany.com"
                   className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
               </label>
               <div>
@@ -549,6 +569,7 @@ export default function Dashboard() {
   const view: View = VIEWS.includes(viewParam as View) ? (viewParam as View) : 'overview';
   const { me, refresh, logout } = useAuth();
   const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
+  const apiOk = useApiHealth();
 
   useEffect(() => {
     api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => setTeamInfo(null));
@@ -609,8 +630,11 @@ export default function Dashboard() {
           )}
         </nav>
         <div className="p-5 border-t border-[--dark-line] font-mono2 text-[10px] text-[--dark-muted] space-y-1">
-          <p><span className="text-[#57C99A] pulse-dot">●</span> CH-BSL-1 operational</p>
-          <p>Control plane · api.devplat.ch</p>
+          <p>
+            <span className={apiOk === false ? 'text-[--red]' : apiOk === null ? 'text-[--dark-muted]' : 'text-[#57C99A] pulse-dot'}>●</span>{' '}
+            {apiOk === false ? 'API unreachable' : apiOk === null ? 'Checking API…' : 'API reachable'}
+          </p>
+          <p>Control plane · {API_URL.replace(/^https?:\/\//, '')}</p>
         </div>
       </aside>
       {/* main */}

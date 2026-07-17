@@ -150,7 +150,15 @@ export default function Admin() {
               <tbody className="divide-y divide-[--dark-line]">
                 {teams.map((t) => (
                   <tr key={t.id} className="text-sm">
-                    <td className="px-5 py-3 font-medium">{t.name}<p className="font-mono2 text-[10px] text-[--dark-muted] font-normal">since {fmtDate(t.createdAt)}</p></td>
+                    <td className="px-5 py-3 font-medium">
+                      <span className="flex items-center gap-2">
+                        {t.name}
+                        {!t.ownerVerified && (
+                          <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-1.5 py-0.5" title="Owner has not confirmed their email — this team may never become active">Unverified</span>
+                        )}
+                      </span>
+                      <p className="font-mono2 text-[10px] text-[--dark-muted] font-normal">since {fmtDate(t.createdAt)}</p>
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${t.planTier === 'free' ? 'border-[--dark-line] text-[--dark-muted]' : 'border-[#57C99A]/40 text-[#57C99A]'}`}>{t.planLabel}</span>
                     </td>

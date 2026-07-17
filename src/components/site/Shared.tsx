@@ -127,7 +127,7 @@ export function TerminalDemo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="bg-[--dark] text-left rounded-none border border-[--dark-line] shadow-[8px_8px_0_0_rgba(12,12,12,0.9)]">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[--dark-line]">
-        <span className="font-mono2 text-[11px] text-[--dark-muted]">mvn verify — payment-service</span>
+        <span className="font-mono2 text-[11px] text-[--dark-muted]">mvn verify</span>
         <span className="font-mono2 text-[11px] text-[--dark-muted] flex items-center gap-2">
           <span className="text-[--green] pulse-dot">●</span> CH-BSL-1 · RTT 8 ms
         </span>
