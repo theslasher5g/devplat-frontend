@@ -44,7 +44,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
           <div className="w-full max-w-sm">{children}</div>
         </div>
       </div>
-      <div className="hidden lg:flex bg-[--ink] text-[--dark-text] dotgrid-dark flex-col justify-between p-16">
+      <div className="hidden lg:flex bg-[--ink] text-[--dark-text] dotgrid-dark flex-col justify-between p-16 relative overflow-hidden">
         <p className="font-doto text-7xl leading-none">5 min<span className="text-[--red]">●</span></p>
         <div className="font-mono2 text-xs space-y-3 text-[--dark-muted]">
           <p><span className="text-[--red]">01</span>  Create an account</p>
