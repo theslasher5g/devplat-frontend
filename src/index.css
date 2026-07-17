@@ -59,13 +59,24 @@ body {
 .rise { animation: rise .6s cubic-bezier(.2,.7,.3,1) both; }
 .rise-1 { animation-delay:.05s } .rise-2 { animation-delay:.15s } .rise-3 { animation-delay:.25s } .rise-4 { animation-delay:.35s }
 /* auth-page rocket mascot */
-@keyframes mascot-bob { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-8px) rotate(-2.5deg); } }
-.mascot-bob { animation: mascot-bob 3.6s ease-in-out infinite; }
+@keyframes mascot-dodge {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  15%  { transform: translate(-5px, -15px) rotate(4deg); }
+  30%  { transform: translate(4px, -6px) rotate(-2deg); }
+  45%  { transform: translate(-7px, 11px) rotate(-5deg); }
+  60%  { transform: translate(5px, 17px) rotate(3deg); }
+  75%  { transform: translate(-4px, 2px) rotate(2deg); }
+  90%  { transform: translate(6px, -9px) rotate(-3deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+.mascot-dodge { animation: mascot-dodge 6s ease-in-out infinite; }
 @keyframes mascot-flame { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(1.4); } }
 .mascot-flame { animation: mascot-flame .3s ease-in-out infinite; transform-box: fill-box; transform-origin: left center; }
 @keyframes mascot-blink { 0%,93%,100% { transform: scaleY(1); } 96.5% { transform: scaleY(.08); } }
 .mascot-eye { animation: mascot-blink 5.4s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes mascot-asteroid { from { left: -12%; } to { left: 112%; } }
+.mascot-asteroid { animation-name: mascot-asteroid; animation-timing-function: linear; animation-iteration-count: infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .rise, .pulse-dot, .cursor-blink::after, .mascot-bob, .mascot-flame, .mascot-eye { animation: none !important; }
+  .rise, .pulse-dot, .cursor-blink::after, .mascot-dodge, .mascot-flame, .mascot-eye, .mascot-asteroid { animation: none !important; }
 }
 ::selection { background: var(--red); color:#fff; }

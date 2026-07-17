@@ -4,16 +4,42 @@ const VB_W = 150;
 const VB_H = 70;
 const EYE_POS: [number, number][] = [[48, 35], [70, 35]];
 
-type Phase = 'idle' | 'fly' | 'reset';
+interface AsteroidSpec { top: number; size: number; duration: number; delay: number; opacity: number }
+
+// Staggered sizes/speeds/vertical lanes so the field reads as scattered, not
+// a single repeating row. top is a % of the container height.
+const ASTEROIDS: AsteroidSpec[] = [
+  { top: 8, size: 14, duration: 4.2, delay: 0, opacity: 0.9 },
+  { top: 70, size: 10, duration: 5.4, delay: 0.8, opacity: 0.75 },
+  { top: 35, size: 18, duration: 6.6, delay: 2.1, opacity: 0.85 },
+  { top: 85, size: 9, duration: 3.6, delay: 1.4, opacity: 0.6 },
+  { top: 20, size: 11, duration: 5.0, delay: 3.2, opacity: 0.7 },
+  { top: 55, size: 15, duration: 4.8, delay: 4.0, opacity: 0.8 },
+];
+
+function Asteroid({ a }: { a: AsteroidSpec }) {
+  return (
+    <div
+      className="absolute mascot-asteroid"
+      style={{ top: `${a.top}%`, animationDuration: `${a.duration}s`, animationDelay: `${a.delay}s`, opacity: a.opacity }}
+    >
+      <svg width={a.size} height={a.size} viewBox="0 0 20 20">
+        <path d="M2 8 L6 2 L14 1 L19 6 L18 14 L11 18 L4 15 Z" fill="var(--dark-muted)" />
+        <circle cx="8" cy="8" r="1.4" fill="var(--dark-line)" />
+        <circle cx="13" cy="12" r="1" fill="var(--dark-line)" />
+      </svg>
+    </div>
+  );
+}
 
 /**
- * Chunky rocket mascot for the auth pages. Points left (it flies toward
- * Basel, i.e. right-to-left), bobs gently, blinks, and its pupils follow
- * the cursor. Every few seconds it dashes off the left edge of the dark
- * panel (the panel clips it via overflow-hidden) and fades back in.
+ * Chunky rocket mascot for the auth pages. Points left, weaves through an
+ * incoming asteroid field (rocks drift left→right, toward its nose), and
+ * its pupils follow the cursor. Purely decorative — CSS keyframes drive the
+ * asteroids and the dodge wobble, so there's no per-frame JS beyond the
+ * mousemove-driven eyes.
  */
 export default function RocketMascot() {
-  const [phase, setPhase] = useState<Phase>('idle');
   const [reduced, setReduced] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const pupilRefs = useRef<(SVGEllipseElement | null)[]>([null, null]);
@@ -51,42 +77,16 @@ export default function RocketMascot() {
     };
   }, []);
 
-  // idle → fly off to the left → invisible snap back → idle, forever.
-  useEffect(() => {
-    if (reduced) return;
-    const ms = phase === 'idle' ? 9000 : phase === 'fly' ? 2500 : 80;
-    const t = setTimeout(
-      () => setPhase(phase === 'idle' ? 'fly' : phase === 'fly' ? 'reset' : 'idle'),
-      ms,
-    );
-    return () => clearTimeout(t);
-  }, [phase, reduced]);
-
-  const flying = phase === 'fly';
-  const flightStyle: React.CSSProperties = {
-    transform: flying ? 'translate(-58vw, -70px) rotate(-8deg)' : 'translate(0, 0) rotate(0deg)',
-    opacity: phase === 'reset' ? 0 : flying ? 0 : 1,
-    transition:
-      phase === 'reset' ? 'none'
-        : flying ? 'transform 2.5s cubic-bezier(.5,.05,.7,.6), opacity .6s ease 1.8s'
-        : 'opacity .7s ease',
-  };
-
   return (
-    <div className="h-36 flex items-center justify-center" aria-hidden="true">
-      <div style={flightStyle}>
-        <div className={reduced ? '' : 'mascot-bob'}>
+    <div className="h-40 relative overflow-hidden" aria-hidden="true">
+      {!reduced && ASTEROIDS.map((a, i) => <Asteroid key={i} a={a} />)}
+      <div className="h-full flex items-center justify-center">
+        <div className={reduced ? '' : 'mascot-dodge'}>
           <svg ref={svgRef} width="160" height="75" viewBox={`0 0 ${VB_W} ${VB_H}`}>
-            {/* speed lines, only while flying */}
-            <g opacity={flying ? 1 : 0} stroke="var(--dark-muted)" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="128" y1="24" x2="144" y2="24" />
-              <line x1="132" y1="35" x2="149" y2="35" />
-              <line x1="128" y1="46" x2="142" y2="46" />
-            </g>
             {/* flame */}
             <g className={reduced ? '' : 'mascot-flame'}>
-              <ellipse cx="106" cy="35" rx={flying ? 17 : 9} ry="7" fill="#E63312" opacity="0.9" />
-              <ellipse cx="103" cy="35" rx={flying ? 10 : 5} ry="3.8" fill="#E8B44C" />
+              <ellipse cx="106" cy="35" rx="11" ry="7" fill="#E63312" opacity="0.9" />
+              <ellipse cx="103" cy="35" rx="6" ry="3.8" fill="#E8B44C" />
             </g>
             {/* fins (roots hidden under the body) */}
             <path d="M86 20 Q98 3 113 8 Q107 19 96 23 Z" fill="#E63312" />
