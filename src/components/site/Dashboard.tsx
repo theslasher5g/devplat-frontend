@@ -271,9 +271,9 @@ function Tokens() {
 /* ---------- Billing: real data ---------- */
 
 const TIER_CARDS = [
-  { tier: 'solo' as const, name: 'Solo', chf: 29, envs: 2 },
-  { tier: 'team' as const, name: 'Team', chf: 79, envs: 5 },
-  { tier: 'scale' as const, name: 'Scale', chf: 199, envs: 15 },
+  { tier: 'solo' as const, name: 'Solo', chf: 19, envs: 2, vcpu: 2, ramGb: 4 },
+  { tier: 'team' as const, name: 'Team', chf: 79, envs: 5, vcpu: 4, ramGb: 8 },
+  { tier: 'scale' as const, name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12 },
 ];
 
 function Billing() {
@@ -348,6 +348,9 @@ function Billing() {
                   {isPaid && sub.subscription?.currentPeriodEnd && ` · Renews on ${fmtDate(sub.subscription.currentPeriodEnd)}`}
                   {!isPaid && sub.trialEndsAt && ` · Trial ends ${fmtDate(sub.trialEndsAt)}`}
                 </p>
+                <p className="font-mono2 text-[11px] text-[--dark-muted] mt-1">
+                  up to {sub.vcpuPerEnvironment} vCPU / {sub.ramGbPerEnvironment} GB per environment · max {sub.maxFootprintGb} GB total
+                </p>
                 {sub.subscription && sub.subscription.status !== 'active' && (
                   <p className="font-mono2 text-[11px] text-[#E8B44C] mt-2">Status: {sub.subscription.status}</p>
                 )}
@@ -391,7 +394,7 @@ function Billing() {
                 <div>
                   <p className="text-sm font-medium">{t.name}</p>
                   <p className="font-mono2 text-[11px] text-[--dark-muted]">
-                    {t.envs} environments · CHF {yearly ? Math.round(t.chf * 0.83) : t.chf}/mo{yearly ? ' (billed yearly)' : ''}
+                    {t.envs} environments · {t.vcpu} vCPU / {t.ramGb} GB each · CHF {yearly ? Math.round(t.chf * 0.83) : t.chf}/mo{yearly ? ' (billed yearly)' : ''}
                   </p>
                 </div>
                 {sub.planTier === t.tier ? (

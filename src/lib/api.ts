@@ -55,6 +55,7 @@ export interface CreatedToken extends ApiTokenInfo { token: string }
 
 export interface SubscriptionInfo {
   planTier: string; planLabel: string; parallelEnvironments: number; chfMonthly: number;
+  vcpuPerEnvironment: number; ramGbPerEnvironment: number; maxFootprintGb: number;
   trialEndsAt: string | null;
   subscription: { status: string; currentPeriodEnd: string | null; priceId: string | null } | null;
   hasStripeCustomer: boolean;

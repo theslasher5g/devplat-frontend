@@ -15,17 +15,21 @@ export const liveLog = [
   { t: '01:38.590', s: 'sys', m: 'Reaper: microVM vm_c8e2 destroyed · storage wiped · nothing persisted' },
 ];
 
+// Mirrors the backend `plans` table (devplat-backend/migrations/003_plans.sql).
+// Each tier caps BOTH how many environments run in parallel AND how large each
+// one may get (vcpu/ramGb) — the resource cap is what keeps a single microVM
+// from pulling unbounded CPU/RAM.
 export const tiers = [
   {
-    name: 'Solo', chf: 29, envs: 2, tagline: 'For solo developers and side projects.',
-    features: ['2 parallel environments', '4 vCPU / 8 GB per environment', 'All standard images pre-warmed', 'CLI + GitHub Actions', 'Community support'],
+    name: 'Solo', chf: 19, envs: 2, vcpu: 2, ramGb: 4, tagline: 'For solo developers and side projects.',
+    features: ['2 parallel environments', 'up to 2 vCPU / 4 GB per environment', 'All standard images pre-warmed', 'CLI + GitHub Actions', 'Community support'],
   },
   {
-    name: 'Team', chf: 79, envs: 5, tagline: 'For teams with an active CI pipeline.', hot: true,
-    features: ['5 parallel environments', '8 vCPU / 16 GB per environment', 'Custom images in the cache', 'Team management & roles', 'DPA included', 'Email support < 24 h'],
+    name: 'Team', chf: 79, envs: 5, vcpu: 4, ramGb: 8, tagline: 'For teams with an active CI pipeline.', hot: true,
+    features: ['5 parallel environments', 'up to 4 vCPU / 8 GB per environment', 'Custom images in the cache', 'Team management & roles', 'DPA included', 'Email support < 24 h'],
   },
   {
-    name: 'Scale', chf: 199, envs: 15, tagline: 'For multiple teams and monorepos.',
-    features: ['15 parallel environments', '8 vCPU / 16 GB per environment', 'Priority scheduling', 'Audit log & SSO (SAML)', 'Latency SLA 99.5 %', 'Support < 4 h'],
+    name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12, tagline: 'For multiple teams and monorepos.',
+    features: ['8 parallel environments', 'up to 6 vCPU / 12 GB per environment', 'Priority scheduling', 'Audit log & SSO (SAML)', 'Latency SLA 99.5 %', 'Support < 4 h'],
   },
 ];

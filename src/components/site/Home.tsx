@@ -93,9 +93,9 @@ $ mvn verify   # unchanged.`}</pre>
               <p className="eyebrow" style={{ color: 'var(--dark-muted)' }}>Flat, not metered</p>
               <h3 className="mt-3 text-xl font-semibold">You pay for parallelism, not minutes.</h3>
               <p className="mt-2 text-sm text-[--dark-muted] max-w-[52ch]">
-                Plans from CHF 29 to CHF 199 a month, sized by concurrent environments — never by
-                minutes. Your invoice in January looks the same as in December, no matter how often
-                your team pushes.
+                Plans from CHF 19 to CHF 249 a month, sized by concurrent environments and a fixed
+                resource cap per environment — never by minutes. Your invoice in January looks the
+                same as in December, no matter how often your team pushes.
               </p>
             </div>
           </div>

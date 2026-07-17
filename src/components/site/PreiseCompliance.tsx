@@ -41,9 +41,10 @@ export function Preise({ go }: { go: (p: Page) => void }) {
           <div className="border hairline bg-white p-7 flex flex-col">
             <p className="eyebrow">Free</p>
             <p className="mt-4 font-doto text-5xl">0<span className="text-lg align-top text-[--red]">CHF</span></p>
-            <p className="mt-2 text-sm text-[--ink-soft]">To try it out. Forever.</p>
+            <p className="mt-2 text-sm text-[--ink-soft]">To try it out. 14 days.</p>
+            <p className="mt-3 font-mono2 text-[11px] text-[--ink-soft]">up to 1 vCPU / 2 GB per environment</p>
             <ul className="mt-5 space-y-2 text-sm text-[--ink-soft] flex-1">
-              {['1 parallel environment', '2 vCPU / 4 GB', '200 test minutes / month', 'Standard image cache'].map((f) => (
+              {['1 parallel environment', '1 vCPU / 2 GB per environment', '14-day trial', 'Standard image cache'].map((f) => (
                 <li key={f} className="flex gap-2"><span className="text-[--red]">—</span>{f}</li>
               ))}
             </ul>
@@ -55,6 +56,7 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               <p className="eyebrow" style={t.hot ? { color: 'var(--dark-muted)' } : undefined}>{t.name}</p>
               <p className="mt-4 font-doto text-5xl">{yearly ? Math.round(t.chf * 0.83) : t.chf}<span className="text-lg align-top text-[--red]">CHF</span></p>
               <p className={`mt-2 text-sm ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{t.tagline}</p>
+              <p className="mt-3 font-mono2 text-[11px]" style={t.hot ? { color: 'var(--dark-muted)' } : { color: 'var(--ink-soft)' }}>up to {t.vcpu} vCPU / {t.ramGb} GB per environment</p>
               <ul className={`mt-5 space-y-2 text-sm flex-1 ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>
                 {t.features.map((f) => <li key={f} className="flex gap-2"><span className="text-[--red]">—</span>{f}</li>)}
               </ul>
