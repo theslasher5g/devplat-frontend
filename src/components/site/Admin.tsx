@@ -51,6 +51,60 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-CH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function DeleteTeamModal({ team, onCancel, onDeleted }: { team: AdminTeam; onCancel: () => void; onDeleted: (id: string) => void }) {
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const ready = confirmText.trim().toLowerCase() === 'delete';
+
+  async function handleDelete() {
+    if (!ready || busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/admin/teams/${team.id}`, { method: 'DELETE' });
+      onDeleted(team.id);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Delete failed.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center px-5" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--red]/50 max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--red]">Delete team — irreversible</p>
+        <h3 className="mt-2 font-semibold text-lg">Delete "{team.name}"?</h3>
+        <p className="mt-2 text-sm text-[--dark-muted]">
+          This permanently removes the team, its members, tokens, and invites. Only offered because the
+          owner never verified their email — this cannot be used on a live team.
+        </p>
+        <label className="block mt-5">
+          <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Type "delete" to confirm</span>
+          <input
+            autoFocus
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 focus:outline-none focus:border-[--red]"
+            placeholder="delete"
+          />
+        </label>
+        {err && <p className="mt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+          <button
+            onClick={handleDelete}
+            disabled={!ready || busy}
+            className="font-mono2 text-xs px-4 py-2 bg-[--red] text-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            {busy ? 'Deleting…' : 'Delete team'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const { me, logout } = useAuth();
@@ -58,6 +112,7 @@ export default function Admin() {
   const [hosts, setHosts] = useState<AdminHost[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [err, setErr] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<AdminTeam | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -145,6 +200,7 @@ export default function Admin() {
                   <th className="px-5 py-3 font-medium">Members</th>
                   <th className="px-5 py-3 font-medium">VM starts · 30d</th>
                   <th className="px-5 py-3 font-medium">Renews</th>
+                  <th className="px-5 py-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[--dark-line]">
@@ -167,6 +223,16 @@ export default function Admin() {
                     <td className="px-5 py-3 font-mono2 text-xs">{t.members}</td>
                     <td className="px-5 py-3 font-mono2 text-xs">{t.vmStarts30d}</td>
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{fmtDate(t.currentPeriodEnd)}</td>
+                    <td className="px-5 py-3 text-right">
+                      {!t.ownerVerified && (
+                        <button
+                          onClick={() => setDeleteTarget(t)}
+                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--red]/80 hover:text-[--red] border border-transparent hover:border-[--red]/40 px-2 py-1"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -183,6 +249,14 @@ export default function Admin() {
           </div>
         </Card>
       </main>
+
+      {deleteTarget && (
+        <DeleteTeamModal
+          team={deleteTarget}
+          onCancel={() => setDeleteTarget(null)}
+          onDeleted={(id) => { setTeams((prev) => prev.filter((t) => t.id !== id)); setDeleteTarget(null); }}
+        />
+      )}
     </div>
   );
 }

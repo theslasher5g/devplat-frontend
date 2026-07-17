@@ -8,6 +8,7 @@ import Download from '@/components/site/Download';
 import Home from '@/components/site/Home';
 import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
 import { Preise, Compliance } from '@/components/site/PreiseCompliance';
+import Security from '@/components/site/Security';
 import { Footer, Nav, type Page } from '@/components/site/Shared';
 import Technik from '@/components/site/Technik';
 import { AuthProvider, RequireAuth } from '@/lib/auth';
@@ -15,6 +16,7 @@ import { AuthProvider, RequireAuth } from '@/lib/auth';
 export const PAGE_PATHS: Record<Page, string> = {
   home: '/',
   technik: '/how-it-works',
+  security: '/security',
   preise: '/pricing',
   download: '/download',
   compliance: '/legal',
@@ -54,6 +56,7 @@ function MarketingPage({ page }: { page: Exclude<Page, 'auth' | 'app'> }) {
   const body =
     page === 'home' ? <Home go={go} /> :
     page === 'technik' ? <Technik go={go} /> :
+    page === 'security' ? <Security go={go} /> :
     page === 'preise' ? <Preise go={go} /> :
     page === 'download' ? <Download go={go} /> :
     page === 'contact' ? <Contact /> :
@@ -72,6 +75,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MarketingPage page="home" />} />
           <Route path="/how-it-works" element={<MarketingPage page="technik" />} />
+          <Route path="/security" element={<MarketingPage page="security" />} />
           <Route path="/pricing" element={<MarketingPage page="preise" />} />
           <Route path="/download" element={<MarketingPage page="download" />} />
           <Route path="/legal" element={<MarketingPage page="compliance" />} />

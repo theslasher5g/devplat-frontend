@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';
 
-export type Page = 'home' | 'technik' | 'preise' | 'download' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
+export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
 
 export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () => void }) {
   return (
@@ -16,9 +16,9 @@ export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () =
 export function Nav({ page, go }: { page: Page; go: (p: Page) => void }) {
   const items: { key: Page; label: string }[] = [
     { key: 'technik', label: 'How it works' },
+    { key: 'security', label: 'Security' },
     { key: 'preise', label: 'Pricing' },
     { key: 'download', label: 'Download' },
-    { key: 'compliance', label: 'Privacy & Legal' },
   ];
   return (
     <header className="sticky top-0 z-40 bg-[--paper]/90 backdrop-blur border-b hairline">
@@ -78,7 +78,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
           <ul className="space-y-2 text-sm text-[--ink-soft]">
             <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>GDPR & Swiss FADP</button></li>
             <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>Download the DPA</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>Security model</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('security')}>Security model</button></li>
           </ul>
         </div>
         <div>

@@ -21,7 +21,7 @@ function Asteroid({ a }: { a: AsteroidSpec }) {
   return (
     <div
       className="absolute mascot-asteroid"
-      style={{ top: `${a.top}%`, animationDuration: `${a.duration}s`, animationDelay: `${a.delay}s`, opacity: a.opacity }}
+      style={{ top: `${a.top}%`, left: '-12%', animationDuration: `${a.duration}s`, animationDelay: `${a.delay}s`, opacity: a.opacity }}
     >
       <svg width={a.size} height={a.size} viewBox="0 0 20 20">
         <path d="M2 8 L6 2 L14 1 L19 6 L18 14 L11 18 L4 15 Z" fill="var(--dark-muted)" />
