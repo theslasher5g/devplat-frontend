@@ -73,7 +73,7 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               <p className="mt-2 text-lg font-semibold">Dedicated hardware, your own region, on-prem option, custom SLAs.</p>
               <p className="text-sm text-[--ink-soft] mt-1">For banks, insurers, and anyone with strict requirements on data residency in Switzerland.</p>
             </div>
-            <button className="btn-ghost px-6 py-3 mt-5 md:mt-0 shrink-0">Book a call</button>
+            <button onClick={() => go('contact')} className="btn-ghost px-6 py-3 mt-5 md:mt-0 shrink-0">Book a call</button>
           </div>
         </div>
       </section>

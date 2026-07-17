@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';
 
-export type Page = 'home' | 'technik' | 'preise' | 'download' | 'compliance' | 'auth' | 'app';
+export type Page = 'home' | 'technik' | 'preise' | 'download' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
 
 export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () => void }) {
   return (
@@ -84,15 +84,21 @@ export function Footer({ go }: { go: (p: Page) => void }) {
         <div>
           <p className="eyebrow mb-3">Contact</p>
           <ul className="space-y-2 text-sm text-[--ink-soft]">
-            <li>hello@devplat.dev</li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('contact')}>hello@devplat.dev</button></li>
             <li>Basel, Switzerland</li>
           </ul>
         </div>
       </div>
       <div className="border-t hairline">
         <div className="mx-auto max-w-6xl px-5 py-4 flex flex-wrap gap-3 justify-between text-xs text-[--ink-soft] font-mono2">
-          <span>© 2026 devplat GmbH (in formation)</span>
-          <span>Imprint · Terms · Privacy</span>
+          <span>© 2026 devplat</span>
+          <span className="flex gap-3">
+            <button className="hover:text-[--ink]" onClick={() => go('imprint')}>Imprint</button>
+            <span aria-hidden>·</span>
+            <button className="hover:text-[--ink]" onClick={() => go('terms')}>Terms</button>
+            <span aria-hidden>·</span>
+            <button className="hover:text-[--ink]" onClick={() => go('privacy')}>Privacy</button>
+          </span>
         </div>
       </div>
     </footer>

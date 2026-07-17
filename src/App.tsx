@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Admin from '@/components/site/Admin';
 import Auth, { InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
+import Contact from '@/components/site/Contact';
 import Dashboard from '@/components/site/Dashboard';
 import Download from '@/components/site/Download';
 import Home from '@/components/site/Home';
+import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
 import { Preise, Compliance } from '@/components/site/PreiseCompliance';
 import { Footer, Nav, type Page } from '@/components/site/Shared';
 import Technik from '@/components/site/Technik';
@@ -16,6 +18,10 @@ export const PAGE_PATHS: Record<Page, string> = {
   preise: '/pricing',
   download: '/download',
   compliance: '/legal',
+  contact: '/contact',
+  imprint: '/legal/imprint',
+  terms: '/legal/terms',
+  privacy: '/legal/privacy',
   auth: '/auth',
   app: '/app',
 };
@@ -50,6 +56,10 @@ function MarketingPage({ page }: { page: Exclude<Page, 'auth' | 'app'> }) {
     page === 'technik' ? <Technik go={go} /> :
     page === 'preise' ? <Preise go={go} /> :
     page === 'download' ? <Download go={go} /> :
+    page === 'contact' ? <Contact /> :
+    page === 'imprint' ? <Imprint /> :
+    page === 'terms' ? <Terms /> :
+    page === 'privacy' ? <PrivacyPolicy /> :
     <Compliance />;
   return <MarketingLayout page={page}>{body}</MarketingLayout>;
 }
@@ -65,6 +75,10 @@ export default function App() {
           <Route path="/pricing" element={<MarketingPage page="preise" />} />
           <Route path="/download" element={<MarketingPage page="download" />} />
           <Route path="/legal" element={<MarketingPage page="compliance" />} />
+          <Route path="/contact" element={<MarketingPage page="contact" />} />
+          <Route path="/legal/imprint" element={<MarketingPage page="imprint" />} />
+          <Route path="/legal/terms" element={<MarketingPage page="terms" />} />
+          <Route path="/legal/privacy" element={<MarketingPage page="privacy" />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/reset-password" element={<ResetPassword />} />
