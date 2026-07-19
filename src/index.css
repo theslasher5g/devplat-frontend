@@ -79,6 +79,17 @@ body {
 @keyframes view-in { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none;} }
 .view-in { animation: view-in .34s cubic-bezier(.2,.7,.3,1) both; }
 
+/* Loading skeleton: a shimmering placeholder block for the dashboard's
+   dark cards while their real data is still in flight — reads as "loading"
+   far better than a bare "—" or "Loading…" string. */
+@keyframes skeleton-shine { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--dark-line) 25%, #33332f 50%, var(--dark-line) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shine 1.4s ease-in-out infinite;
+  border-radius: 2px;
+}
+
 /* Card hover lift — a small, consistent physical response used on the
    bento/feature/pricing cards so the page feels touchable rather than static. */
 .lift { transition: transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s cubic-bezier(.2,.7,.3,1); }
@@ -127,6 +138,7 @@ body {
      never nudged or transitioned, for anyone who asked the OS to reduce motion. */
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
   .view-in { animation: none !important; }
+  .skeleton { animation: none !important; }
   .lift { transition: none !important; }
   .lift:hover { transform: none !important; }
   .link-underline::after { transition: none !important; }

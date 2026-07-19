@@ -38,6 +38,30 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   return <div className={`bg-[--dark-card] border border-[--dark-line] ${className}`}>{children}</div>;
 }
 
+function Skeleton({ className = '' }: { className?: string }) {
+  return <span className={`skeleton block ${className}`} aria-hidden />;
+}
+
+/** Copy-to-clipboard button with a brief "Copied" confirmation. Falls back
+ *  silently if the Clipboard API is unavailable (old browser / insecure
+ *  context) — the value is still select-all'able by hand. */
+function CopyButton({ value, className = '' }: { value: string; className?: string }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setDone(true);
+      setTimeout(() => setDone(false), 1600);
+    } catch { /* clipboard unavailable — the text stays selectable manually */ }
+  };
+  return (
+    <button onClick={copy}
+      className={`font-mono2 text-[10px] border px-3 py-1.5 transition-colors ${done ? 'border-[#57C99A] text-[#57C99A]' : 'border-[--dark-line] text-[--dark-muted] hover:border-white hover:text-white'} ${className}`}>
+      {done ? '✓ Copied' : 'Copy'}
+    </button>
+  );
+}
+
 function CardHead({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between px-5 py-3.5 border-b border-[--dark-line]">
@@ -100,7 +124,9 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
         ].map(([k, v, s]) => (
           <Card key={k} className="p-5">
             <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{k}</p>
-            <p className="font-doto text-4xl mt-2">{v}</p>
+            {v === '—' && envs === null && !err
+              ? <Skeleton className="h-9 w-16 mt-2.5 mb-1.5" />
+              : <p className="font-doto text-4xl mt-2">{v}</p>}
             <p className="text-xs text-[--dark-muted] mt-1">{s}</p>
           </Card>
         ))}
@@ -110,7 +136,13 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
           <button onClick={load} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Refresh</button>
         } />
         <div className="divide-y divide-[--dark-line]">
-          {envs === null && !err && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+          {envs === null && !err && [0, 1].map((i) => (
+            <div key={i} className="grid grid-cols-[1.3fr_1fr_110px] gap-3 items-center px-5 py-3.5">
+              <div className="space-y-1.5"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-24" /></div>
+              <Skeleton className="h-3 w-32 hidden sm:block" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+          ))}
           {err && <p className="px-5 py-4 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
           {envs?.length === 0 && (
             <div className="px-5 py-8">
@@ -118,10 +150,14 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
                 No environments running. Your test runs will show up here from the first{' '}
                 <span className="font-mono2 text-white">devplat connect</span> on.
               </p>
-              <ol className="mt-5 space-y-2 font-mono2 text-xs text-[--dark-muted]">
+              <ol className="mt-5 space-y-3 font-mono2 text-xs text-[--dark-muted]">
                 <li>1 · <button onClick={() => goView('tokens')} className="text-white hover:text-[#8AB8F0]">Create an API token</button> for your CI or laptop</li>
-                <li>2 · Install the CLI: <span className="text-white">curl -sf https://get.devplat.ch | sh</span></li>
-                <li>3 · <span className="text-white">devplat connect</span> — then run your tests as usual</li>
+                <li className="flex items-center gap-2 flex-wrap">
+                  <span>2 · Install the CLI:</span>
+                  <code className="text-white bg-black/40 border border-[--dark-line] px-2 py-1">curl -fsSL https://get.devplat.ch | sh</code>
+                  <CopyButton value="curl -fsSL https://get.devplat.ch | sh" />
+                </li>
+                <li>3 · <span className="text-white">devplat connect --token $DEVPLAT_TOKEN</span> — then run your tests as usual</li>
               </ol>
             </div>
           )}
@@ -279,7 +315,10 @@ function Tokens() {
       {created && (
         <Card className="p-5 border-[#E8B44C]/50">
           <p className="font-mono2 text-[11px] uppercase tracking-widest text-[#E8B44C]">New token — visible only now</p>
-          <p className="font-mono2 text-sm mt-3 bg-black/40 border border-[--dark-line] p-3 select-all break-all">{created.token}</p>
+          <div className="mt-3 flex items-stretch gap-2">
+            <p className="flex-1 font-mono2 text-sm bg-black/40 border border-[--dark-line] p-3 select-all break-all">{created.token}</p>
+            <CopyButton value={created.token} className="shrink-0" />
+          </div>
           <p className="text-xs text-[--dark-muted] mt-2">Copy this token into your CI secret. For security reasons we never show it again.</p>
           <button onClick={() => setCreated(null)} className="mt-3 font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Got it</button>
         </Card>
