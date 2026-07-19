@@ -40,7 +40,7 @@ export default function Contact() {
       await api('/contact', { body: { name, email, company: company || undefined, message } });
       setSent(true);
     } catch {
-      setErr('Could not send your message — please try again, or email hello@devplat.dev directly.');
+      setErr('Could not send your message — please try again, or email hello@devplat.ch directly.');
     } finally {
       setBusy(false);
     }
@@ -65,7 +65,7 @@ export default function Contact() {
         <div className="mx-auto max-w-6xl px-5 py-16 grid gap-14 lg:grid-cols-[1fr_1.2fr]">
           <div>
             <Eyebrow>Reach us directly</Eyebrow>
-            <h2 className="text-2xl font-semibold tracking-tight">hello@devplat.dev</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">hello@devplat.ch</h2>
             <p className="mt-3 text-sm text-[--ink-soft] max-w-[40ch]">
               Prefer email? Write to us directly — same inbox this form delivers to.
             </p>

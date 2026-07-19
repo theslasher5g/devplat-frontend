@@ -47,7 +47,7 @@ export function Imprint() {
       </p>
       <h2>Contact</h2>
       <p>
-        Email: hello@devplat.dev<br />
+        Email: hello@devplat.ch<br />
         Phone: <Placeholder>[OPTIONAL — PHONE NUMBER]</Placeholder>
       </p>
       <h2>VAT / UID</h2>
@@ -145,7 +145,7 @@ export function Terms() {
         Switzerland, to the extent permitted by mandatory consumer-protection law.
       </p>
       <h2>12. Contact</h2>
-      <p>hello@devplat.dev</p>
+      <p>hello@devplat.ch</p>
     </LegalShell>
   );
 }
@@ -156,7 +156,7 @@ export function PrivacyPolicy() {
       <h2>1. Controller</h2>
       <p>
         <Placeholder>[FULL LEGAL NAME]</Placeholder>, <Placeholder>[STREET, POSTAL CODE, CITY]</Placeholder>,
-        Switzerland — hello@devplat.dev.
+        Switzerland — hello@devplat.ch.
       </p>
       <h2>2. What we process</h2>
       <p>We process the following categories of personal data:</p>
@@ -185,7 +185,7 @@ export function PrivacyPolicy() {
       </ul>
       <p>
         Both are contractually bound to process data only on our instructions. A full, current
-        sub-processor list is available on request via hello@devplat.dev.
+        sub-processor list is available on request via hello@devplat.ch.
       </p>
       <h2>5. International transfers</h2>
       <p>
@@ -203,7 +203,7 @@ export function PrivacyPolicy() {
       <h2>7. Your rights</h2>
       <p>
         Under GDPR and the Swiss FADP you have the right to access, correct, delete, or export your
-        personal data, and to object to certain processing. Contact hello@devplat.dev to exercise any
+        personal data, and to object to certain processing. Contact hello@devplat.ch to exercise any
         of these rights. If you are in the EU/EEA or Switzerland, you also have the right to lodge a
         complaint with your local data protection authority (in Switzerland: the FDPIC).
       </p>
@@ -220,7 +220,7 @@ export function PrivacyPolicy() {
       <h2>10. Changes</h2>
       <p>We may update this policy from time to time; material changes will be announced by email.</p>
       <h2>11. Contact</h2>
-      <p>hello@devplat.dev</p>
+      <p>hello@devplat.ch</p>
     </LegalShell>
   );
 }

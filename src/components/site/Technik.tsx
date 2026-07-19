@@ -22,20 +22,18 @@ integration-tests:
   script:
     - mvn verify`,
   'Local (CLI)': `# once
-$ brew install devplat   # or: curl -sf https://get.devplat.ch | sh
-$ devplat login
+$ curl -fsSL https://get.devplat.ch | sh
 
-# per session
-$ devplat connect
-✓ Tunnel active → CH-BSL-1 (RTT 8 ms)
-✓ DOCKER_HOST=tcp://127.0.0.1:52731
+# per session — connect with your ci:run token
+$ devplat connect --token $DEVPLAT_TOKEN
+  ✓ assigned · tunnel active
+  DOCKER_HOST=tcp://127.0.0.1:52731
 
 $ mvn verify            # or gradle, pytest, go test …`,
   'testcontainers.properties': `# ~/.testcontainers.properties
-# Alternative without DOCKER_HOST — native to Testcontainers
-docker.host=tcp://127.0.0.1:52731
-docker.tls.verify=1
-docker.cert.path=/Users/you/.devplat/certs`,
+# Point Testcontainers at the tunnel directly instead of exporting
+# DOCKER_HOST. The endpoint is printed by 'devplat connect'.
+docker.host=tcp://127.0.0.1:52731`,
 };
 
 function Layer({ n, title, sub, items, dark }: { n: string; title: string; sub: string; items: string[]; dark?: boolean }) {
@@ -81,7 +79,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
             <Layer n="2" sub="orchestration" title="Control plane — auth, scheduling, metering"
               items={['Accounts, teams, tokens, quotas', 'Scheduler assigns the tunnel to a microVM', 'Enforces parallelism limits per plan', 'Event-based metering for the dashboard']} />
             <Layer n="3" sub="Basel" title="Data plane — Firecracker microVMs" dark
-              items={['One VM per test run, a real Docker daemon inside', '~150 ms boot, snapshots for top images', 'KVM isolation instead of container tricks', 'After the run: VM & storage destroyed']} />
+              items={['One VM per test run, a real Docker daemon inside', 'A few seconds from request to a ready daemon', 'KVM isolation instead of container tricks', 'After the run: VM & storage destroyed']} />
           </div>
           {/* flow: vertical stepper — every step visible, nothing to scroll */}
           <div className="mt-10 border hairline bg-white p-6 md:p-10">
@@ -92,7 +90,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
                 ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a mutually authenticated TLS tunnel to the control plane.', ''],
                 ['scheduler', 'Checks your plan’s parallelism limit and assigns the run to a free microVM. If everything is busy, the run queues briefly instead of failing.', ''],
                 ['microVM · dockerd', 'A dedicated Firecracker VM with a real Docker daemon inside — isolated from every other customer by a KVM boundary, not by namespaces.', ''],
-                ['postgres · redis · kafka', 'Your containers start from the warm image cache, typically in under a second. Ports are mapped back through the tunnel transparently.', 'run finishes — here after 1:38'],
+                ['postgres · redis · kafka', 'Your containers start from the warm image cache instead of pulling from the internet each run. Testcontainers reaches them through the Docker API over the tunnel.', 'run finishes — VM destroyed'],
               ].map(([title, desc, edge], i) => (
                 <li key={title} className="relative pl-12 pb-8 last:pb-0">
                   <span className="absolute left-0 top-0 w-8 h-8 grid place-items-center border hairline bg-white font-doto text-sm">{i + 1}</span>
@@ -118,14 +116,14 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
       <section className="border-b hairline bg-white">
         <div className="mx-auto max-w-6xl px-5 py-20">
           <Eyebrow>The image cache</Eyebrow>
-          <h2 className="text-3xl font-semibold tracking-tight max-w-[32ch]">Why your tests start faster with us than they do locally.</h2>
+          <h2 className="text-3xl font-semibold tracking-tight max-w-[32ch]">Images are pulled once, then served from the local network.</h2>
           <ol className="mt-6 grid gap-4 md:grid-cols-3 text-sm text-[--ink-soft]">
             <li className="flex gap-4"><span className="font-doto text-xl text-[--red] shrink-0">a</span>
-              A pull-through registry proxy pulls every image from the internet exactly once. After that we serve it over the local network in under a second — Docker Hub pull limits never touch you.</li>
+              A pull-through registry proxy pulls every image from the internet exactly once. After that it's served over the local network — Docker Hub pull limits never touch your test runs.</li>
             <li className="flex gap-4"><span className="font-doto text-xl text-[--red] shrink-0">b</span>
-              For the 8 most common images (Postgres, MariaDB, Redis, Kafka, RabbitMQ, Elasticsearch, Mongo, LocalStack) we keep Firecracker snapshots with the image already loaded: resume in milliseconds.</li>
+              <span><span className="chip-soon">Roadmap</span> For the most common images (Postgres, Redis, Kafka, Elasticsearch, Mongo …) we're adding Firecracker snapshots with the image already loaded, for sub-second resume.</span></li>
             <li className="flex gap-4"><span className="font-doto text-xl text-[--red] shrink-0">c</span>
-              Team and Scale customers can add their own images (e.g. fixture databases) to the cache.</li>
+              <span><span className="chip-soon">Roadmap</span> Team and Scale customers will be able to add their own images (e.g. fixture databases) to the cache.</span></li>
           </ol>
         </div>
       </section>

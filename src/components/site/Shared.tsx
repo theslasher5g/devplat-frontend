@@ -1,8 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';
 
-export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
+export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'docs' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
+
+/**
+ * Reveal wraps content that should fade/slide in the first time it scrolls
+ * into view. One IntersectionObserver per element, disconnected after the
+ * first intersection so it only ever plays once. `delay` (ms) staggers
+ * siblings without needing a class per step. Honors prefers-reduced-motion
+ * purely via CSS (see index.css: .reveal collapses to a no-op there), so
+ * nothing here needs to branch on it.
+ */
+export function Reveal({
+  children, delay = 0, className = '', as: Tag = 'div',
+}: { children: ReactNode; delay?: number; className?: string; as?: 'div' | 'li' | 'section' }) {
+  const ref = useRef<HTMLElement | null>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || visible) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [visible]);
+  return (
+    <Tag
+      ref={ref as never}
+      className={`reveal ${visible ? 'is-visible' : ''} ${className}`}
+      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+    >
+      {children}
+    </Tag>
+  );
+}
 
 export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () => void }) {
   return (
@@ -18,6 +57,7 @@ export function Nav({ page, go }: { page: Page; go: (p: Page) => void }) {
     { key: 'technik', label: 'How it works' },
     { key: 'security', label: 'Security' },
     { key: 'preise', label: 'Pricing' },
+    { key: 'docs', label: 'Docs' },
     { key: 'download', label: 'Download' },
   ];
   return (
@@ -27,7 +67,7 @@ export function Nav({ page, go }: { page: Page; go: (p: Page) => void }) {
         <nav className="hidden md:flex items-center gap-8">
           {items.map((i) => (
             <button key={i.key} onClick={() => go(i.key)}
-              className={`text-sm transition-colors ${page === i.key ? 'text-[--ink] font-medium' : 'text-[--ink-soft] hover:text-[--ink]'}`}>
+              className={`link-underline text-sm transition-colors ${page === i.key ? 'text-[--ink] font-medium' : 'text-[--ink-soft] hover:text-[--ink]'}`}>
               {i.label}
             </button>
           ))}
@@ -69,6 +109,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
           <ul className="space-y-2 text-sm text-[--ink-soft]">
             <li><button className="hover:text-[--ink]" onClick={() => go('technik')}>Architecture</button></li>
             <li><button className="hover:text-[--ink]" onClick={() => go('preise')}>Pricing</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('docs')}>Docs</button></li>
             <li><button className="hover:text-[--ink]" onClick={() => go('download')}>Download the CLI</button></li>
             <li><button className="hover:text-[--ink]" onClick={() => go('auth')}>Dashboard</button></li>
           </ul>
@@ -84,7 +125,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
         <div>
           <p className="eyebrow mb-3">Contact</p>
           <ul className="space-y-2 text-sm text-[--ink-soft]">
-            <li><button className="hover:text-[--ink]" onClick={() => go('contact')}>hello@devplat.dev</button></li>
+            <li><button className="hover:text-[--ink]" onClick={() => go('contact')}>hello@devplat.ch</button></li>
             <li>Basel, Switzerland</li>
           </ul>
         </div>
@@ -141,7 +182,7 @@ export function TerminalDemo({ compact = false }: { compact?: boolean }) {
         ))}
         {n < liveLog.length && <div className="cursor-blink" />}
         {n >= liveLog.length && (
-          <div className="mt-2 text-[#57C99A]">✓ Completed in 1:38 — faster than local.</div>
+          <div className="mt-2 text-[#57C99A]">✓ BUILD SUCCESS — containers ran in Basel, torn down after.</div>
         )}
       </div>
     </div>
