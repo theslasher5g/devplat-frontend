@@ -17,12 +17,12 @@ jobs:
 integration-tests:
   image: eclipse-temurin:21
   before_script:
-    - curl -sf https://get.devplat.dev | sh
+    - curl -sf https://get.devplat.ch | sh
     - devplat connect --token $DEVPLAT_TOKEN
   script:
     - mvn verify`,
   'Local (CLI)': `# once
-$ brew install devplat   # or: curl -sf https://get.devplat.dev | sh
+$ brew install devplat   # or: curl -sf https://get.devplat.ch | sh
 $ devplat login
 
 # per session

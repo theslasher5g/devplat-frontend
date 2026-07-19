@@ -3,47 +3,26 @@ import { Eyebrow, type Page } from './Shared';
 
 const CLI_VERSION = 'v0.4.2';
 
+// Linux and Windows only for now — both amd64. macOS and arm64 builds are a
+// later addition (same release pipeline, just more targets), not listed
+// here yet so this page never links to something that doesn't exist.
 const installs: Record<string, { intro: string; code: string }> = {
-  'macOS': {
-    intro: 'Via Homebrew, or with the install script. Universal binary — Apple Silicon and Intel.',
-    code: `$ brew install devplat/tap/devplat
-
-# or, without Homebrew:
-$ curl -sf https://get.devplat.dev | sh`,
-  },
   'Linux': {
-    intro: 'One static binary, no dependencies. The script detects your architecture (amd64 / arm64) and verifies the checksum.',
-    code: `$ curl -sf https://get.devplat.dev | sh
+    intro: 'One static binary, no dependencies. Same script works unchanged on CI runners — pass --token or set DEVPLAT_TOKEN.',
+    code: `$ curl -fsSL https://get.devplat.ch | sh
 
 # prefer to inspect first? Same thing, two steps:
-$ curl -sfO https://get.devplat.dev/install.sh
+$ curl -fsSLO https://get.devplat.ch/install.sh
 $ less install.sh && sh install.sh`,
   },
   'Windows': {
-    intro: 'Via winget, or grab the binary directly. Runs in PowerShell, cmd, and Git Bash.',
-    code: `> winget install devplat.cli
-
-# or with PowerShell:
-> irm https://get.devplat.dev/install.ps1 | iex`,
-  },
-  'CI runners': {
-    intro: 'In GitHub Actions use the action — it installs, authenticates and connects in one step. Everywhere else, the install script.',
-    code: `# GitHub Actions
-- uses: devplat/connect@v1
-  with:
-    token: \${{ secrets.DEVPLAT_TOKEN }}
-
-# GitLab CI, Jenkins, anything else
-- curl -sf https://get.devplat.dev | sh
-- devplat connect --token $DEVPLAT_TOKEN`,
+    intro: 'Via PowerShell. Installs to your user profile and adds it to PATH — no admin rights needed.',
+    code: `> irm https://get.devplat.ch/install.ps1 | iex`,
   },
 };
 
 const binaries: [string, string][] = [
-  ['macOS · Apple Silicon', `devplat-${CLI_VERSION}-darwin-arm64.tar.gz`],
-  ['macOS · Intel', `devplat-${CLI_VERSION}-darwin-amd64.tar.gz`],
   ['Linux · amd64', `devplat-${CLI_VERSION}-linux-amd64.tar.gz`],
-  ['Linux · arm64', `devplat-${CLI_VERSION}-linux-arm64.tar.gz`],
   ['Windows · amd64', `devplat-${CLI_VERSION}-windows-amd64.zip`],
 ];
 
@@ -99,8 +78,8 @@ export default function Download({ go }: { go: (p: Page) => void }) {
             <h2 className="text-3xl font-semibold tracking-tight">Three commands to your first remote test run.</h2>
             <ol className="mt-6 space-y-5 text-sm text-[--ink-soft]">
               {[
-                ['devplat login', 'Opens the browser once and stores a device credential in your OS keychain. On CI you skip this and pass --token instead.'],
-                ['devplat connect', 'Builds the tunnel, prints the endpoint, and exports DOCKER_HOST for the current shell. Stays connected until you close it.'],
+                ['curl -fsSL https://get.devplat.ch | sh', 'One-time install. Puts the devplat binary on your PATH.'],
+                ['devplat connect --token $DEVPLAT_TOKEN', 'Builds the tunnel, prints the endpoint, and exports DOCKER_HOST for the current shell. Stays connected until you close it. Create a token in the dashboard under Tokens.'],
                 ['mvn verify', 'Or gradle test, pytest, go test — your test command, unchanged. Testcontainers finds the Docker API and never notices the difference.'],
               ].map(([cmd, desc], i) => (
                 <li key={cmd} className="flex gap-4">
@@ -120,14 +99,14 @@ export default function Download({ go }: { go: (p: Page) => void }) {
               Every release ships with a SHA-256 checksum file. The install script verifies it
               automatically; if you download a binary directly, compare it yourself:
             </p>
-            <pre className="mt-4 font-mono2 text-xs bg-[--ink] text-[--dark-text] p-4 overflow-x-auto">{`$ curl -sfO https://get.devplat.dev/${CLI_VERSION}/checksums.txt
+            <pre className="mt-4 font-mono2 text-xs bg-[--ink] text-[--dark-text] p-4 overflow-x-auto">{`$ curl -sfO https://get.devplat.ch/${CLI_VERSION}/checksums.txt
 $ sha256sum -c checksums.txt --ignore-missing
 devplat-${CLI_VERSION}-linux-amd64.tar.gz: OK`}</pre>
             <div className="mt-6 border hairline">
               {binaries.map(([platform, file]) => (
                 <div key={file} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b hairline last:border-b-0 text-sm">
                   <span className="text-[--ink]">{platform}</span>
-                  <a className="font-mono2 text-xs text-[--ink-soft] hover:text-[--red]" href={`https://get.devplat.dev/${CLI_VERSION}/${file}`}>
+                  <a className="font-mono2 text-xs text-[--ink-soft] hover:text-[--red]" href={`https://get.devplat.ch/${CLI_VERSION}/${file}`}>
                     {file} ↓
                   </a>
                 </div>

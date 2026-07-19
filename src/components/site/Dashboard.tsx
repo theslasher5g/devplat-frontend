@@ -120,7 +120,7 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
               </p>
               <ol className="mt-5 space-y-2 font-mono2 text-xs text-[--dark-muted]">
                 <li>1 · <button onClick={() => goView('tokens')} className="text-white hover:text-[#8AB8F0]">Create an API token</button> for your CI or laptop</li>
-                <li>2 · Install the CLI: <span className="text-white">curl -sf https://get.devplat.dev | sh</span></li>
+                <li>2 · Install the CLI: <span className="text-white">curl -sf https://get.devplat.ch | sh</span></li>
                 <li>3 · <span className="text-white">devplat connect</span> — then run your tests as usual</li>
               </ol>
             </div>
@@ -165,7 +165,7 @@ jobs:
     : `# ${repoComment}.gitlab-ci.yml
 integration-tests:
   before_script:
-    - curl -sf https://get.devplat.dev | sh
+    - curl -sf https://get.devplat.ch | sh
     - devplat connect --token $DEVPLAT_TOKEN
   script:
     - mvn verify`;
