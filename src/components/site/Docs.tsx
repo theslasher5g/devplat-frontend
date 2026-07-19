@@ -294,7 +294,7 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
                 ['GitHub Action', 'A devplat/connect action wrapping install + connect into one CI step.'],
               ].map(([t, d]) => (
                 <li key={t} className="flex gap-3">
-                  <span className="chip-soon shrink-0 mt-0.5">Soon</span>
+                  <span className="chip-soon shrink-0 self-start mt-0.5">Soon</span>
                   <span className="text-sm">
                     <span className="text-[--ink] font-medium">{t}.</span>{' '}
                     <span className="text-[--ink-soft]">{d}</span>

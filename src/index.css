@@ -73,6 +73,12 @@ body {
 }
 .reveal.is-visible { opacity: 1; transform: translateY(0); }
 
+/* Dashboard view-switch fade: the main content re-mounts (keyed on the
+   active view) and eases in, so moving between Environments / Tokens /
+   Billing feels like a transition instead of a hard swap. */
+@keyframes view-in { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none;} }
+.view-in { animation: view-in .34s cubic-bezier(.2,.7,.3,1) both; }
+
 /* Card hover lift — a small, consistent physical response used on the
    bento/feature/pricing cards so the page feels touchable rather than static. */
 .lift { transition: transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s cubic-bezier(.2,.7,.3,1); }
@@ -117,9 +123,10 @@ body {
 .mascot-asteroid { animation-name: mascot-asteroid; animation-timing-function: linear; animation-iteration-count: infinite; }
 @media (prefers-reduced-motion: reduce) {
   .rise, .pulse-dot, .cursor-blink::after, .mascot-dodge, .mascot-flame, .mascot-eye, .mascot-asteroid { animation: none !important; }
-  /* Reveal/lift collapse to no-ops: content is shown immediately, never
-     nudged or transitioned, for anyone who asked the OS to reduce motion. */
+  /* Reveal/lift/view-fade collapse to no-ops: content is shown immediately,
+     never nudged or transitioned, for anyone who asked the OS to reduce motion. */
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .view-in { animation: none !important; }
   .lift { transition: none !important; }
   .lift:hover { transform: none !important; }
   .link-underline::after { transition: none !important; }

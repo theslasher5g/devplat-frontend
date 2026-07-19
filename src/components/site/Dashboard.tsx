@@ -663,6 +663,17 @@ export default function Dashboard() {
   const limit = teamInfo?.team.parallelLimit ?? 1;
   const initials = (me?.user.email ?? '??').slice(0, 2).toUpperCase();
 
+  // Free-trial countdown. Only the free plan is time-boxed (trial_ends_at);
+  // paid plans send a trialEndsAt too but it's not meaningful for them, so
+  // this is gated on the Free label. Surfaced in the header so a trial that's
+  // about to lapse (after which parallel envs drop to 0) is never a surprise.
+  const trialDaysLeft = (() => {
+    const iso = teamInfo?.team.trialEndsAt;
+    if (!iso || !planLabel.toLowerCase().includes('free')) return null;
+    const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+    return days;
+  })();
+
   // Invited users who registered but haven't accepted their invite yet have no team.
   if (me && !me.team) {
     return (
@@ -712,6 +723,19 @@ export default function Dashboard() {
             <h1 className="hidden md:block font-mono2 text-xs uppercase tracking-widest text-[--dark-muted]">{teamName} / {titles[view]}</h1>
           </div>
           <div className="flex items-center gap-4">
+            {trialDaysLeft !== null && (
+              <button
+                onClick={() => setView('billing')}
+                title="Free trial — parallel environments drop to 0 when it ends"
+                className={`hidden sm:block font-mono2 text-[10px] border px-2 py-1 transition-colors ${
+                  trialDaysLeft <= 3
+                    ? 'border-[--red]/50 text-[#F07A6A] hover:border-[--red]'
+                    : 'border-[#E8B44C]/40 text-[#E8B44C] hover:border-[#E8B44C]'
+                }`}
+              >
+                {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left` : 'Trial ended — upgrade to run'}
+              </button>
+            )}
             <span className="hidden sm:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted]">Plan: {planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
             <button onClick={signOut} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Sign out</button>
             <span className="font-doto w-8 h-8 grid place-items-center border border-[--dark-line] text-xs" title={me?.user.email}>{initials}</span>
@@ -725,14 +749,16 @@ export default function Dashboard() {
           ))}
         </div>
         <main className="p-5 lg:p-8">
-          {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}
-          {view === 'pipelines' && <Pipelines />}
-          {view === 'tokens' && <Tokens />}
-          {view === 'billing' && <Billing />}
-          {view === 'team' && <Team />}
-          {view === 'settings' && (
-            <Settings teamName={teamName} myRole={teamInfo?.team.myRole} onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
-          )}
+          <div key={view} className="view-in">
+            {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}
+            {view === 'pipelines' && <Pipelines />}
+            {view === 'tokens' && <Tokens />}
+            {view === 'billing' && <Billing />}
+            {view === 'team' && <Team />}
+            {view === 'settings' && (
+              <Settings teamName={teamName} myRole={teamInfo?.team.myRole} onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
+            )}
+          </div>
         </main>
       </div>
     </div>
