@@ -127,7 +127,7 @@ $ mvn verify   # unchanged.`}</pre>
         <Reveal className="mx-auto max-w-6xl px-5 py-24 text-left md:flex items-end justify-between gap-10">
           <div>
             <p className="font-doto text-5xl md:text-7xl leading-none">Ready<span className="text-[--red]">●</span></p>
-            <p className="mt-4 text-[--dark-muted] max-w-[40ch]">Your first test run goes through devplat in five minutes. Free tier: 1 parallel environment, forever.</p>
+            <p className="mt-4 text-[--dark-muted] max-w-[40ch]">Your first test run goes through devplat in five minutes. Free 14-day trial — 1 parallel environment, no card.</p>
           </div>
           <div className="mt-8 md:mt-0 flex gap-3 shrink-0">
             <button onClick={() => go('auth')} className="bg-white text-[--ink] px-6 py-3 font-medium hover:bg-[--red] hover:text-white transition-colors">Create an account</button>

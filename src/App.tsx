@@ -42,8 +42,46 @@ function ScrollToTop() {
   return null;
 }
 
+/**
+ * Section-level scroll reveal for the content marketing pages. Rather than
+ * wrapping every section by hand, this observes each <main> > section once
+ * after mount and fades it in as it enters the viewport. Sections already on
+ * screen at load are shown immediately (no flash), and the home page opts out
+ * entirely — it has its own hand-tuned, staggered Reveal components. Honors
+ * prefers-reduced-motion purely through the CSS (.reveal collapses there).
+ */
+function useSectionReveals(enabled: boolean) {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!enabled) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('main > section'));
+    const viewportH = window.innerHeight;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add('is-visible');
+            observer.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -6% 0px' },
+    );
+    for (const s of sections) {
+      // Above-the-fold sections start visible so nothing flashes on load;
+      // only sections below the initial viewport get the reveal treatment.
+      if (s.getBoundingClientRect().top < viewportH * 0.9) continue;
+      s.classList.add('reveal');
+      observer.observe(s);
+    }
+    return () => observer.disconnect();
+  }, [enabled, pathname]);
+}
+
 function MarketingLayout({ page, children }: { page: Page; children: React.ReactNode }) {
   const go = useGo();
+  useSectionReveals(page !== 'home' && page !== 'docs');
   return (
     <div>
       <Nav page={page} go={go} />

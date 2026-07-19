@@ -254,8 +254,8 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
               until one frees up, rather than failing.
             </p>
             <p className="text-sm text-[--ink-soft]">
-              The free tier is one parallel environment, forever. Paid plans and their exact caps
-              are on the{' '}
+              The free tier is a 14-day trial with one parallel environment; after it lapses you'll
+              need a paid plan to start environments. Paid plans and their exact caps are on the{' '}
               <button onClick={() => go('preise')} className="link-underline text-[--ink] font-medium">pricing page</button>.
             </p>
           </section>
