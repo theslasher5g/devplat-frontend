@@ -5,8 +5,8 @@ import { Eyebrow, type Page } from './Shared';
 // design — that would fragment the brand and double the upkeep). A sticky
 // left rail scroll-spies the sections on the right. Content is kept honest to
 // what the CLI actually does today: token auth only (no `devplat login`
-// yet), Docker-API access over the tunnel, and the current port-mapping
-// caveat — features still on the roadmap are labelled, not implied.
+// yet), Docker-API access plus per-container-port mirroring over the tunnel
+// — features still on the roadmap are labelled, not implied.
 
 interface Section {
   id: string;
@@ -267,7 +267,7 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
               {[
                 ['“no API token — pass --token or set DEVPLAT_TOKEN”', 'The CLI found no token. Export DEVPLAT_TOKEN or pass --token. Create one in the dashboard under Tokens (scope ci:run).'],
                 ['Stuck on “queued, waiting for capacity…”', 'Your team is at its parallelism limit — an existing environment must be released (or the run finished) before this one is assigned. Check the dashboard, or upgrade the plan for more concurrent environments.'],
-                ['Testcontainers can’t reach a published container port', 'Reaching the Docker API works; a container’s -p published port being reachable from your machine does not yet. Tests that talk to containers through the Docker API / Testcontainers’ own host+port mapping work; anything depending on a fixed host-published port is on the roadmap.'],
+                ['Testcontainers can’t reach a published container port', 'The CLI mirrors every published TCP port of a running container onto the same port on 127.0.0.1 while devplat connect is active. If a connection fails: check the port isn’t already taken locally (the CLI prints a warning if so), and make sure you’re on a current CLI build — port mirroring shipped with the dynamic port tunnel and older binaries only tunnel the Docker API itself. UDP ports aren’t mirrored.'],
                 ['“environment never became ready”', 'The VM was assigned but its Docker daemon didn’t answer in time. Usually transient — retry devplat connect. If it persists, the platform status is shown per-region in the footer.'],
               ].map(([q, a]) => (
                 <div key={q} className="border-l-2 border-[--ink] pl-4">
@@ -287,7 +287,6 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
             </p>
             <ul className="mt-4 space-y-3">
               {[
-                ['Published container ports', 'Reaching arbitrary -p published ports from the client, so every Testcontainers pattern works unchanged.'],
                 ['Pre-warmed snapshots', 'Sub-second container starts from Firecracker snapshots, rather than a cold daemon boot each run.'],
                 ['devplat login', 'Interactive browser sign-in with credentials in your OS keychain, for local use without a pre-issued token.'],
                 ['macOS & arm64 builds', 'Native binaries beyond today’s Linux/Windows amd64.'],
