@@ -4,9 +4,10 @@ import { Eyebrow, type Page } from './Shared';
 // A single-page docs experience in the site's own design system (no separate
 // design — that would fragment the brand and double the upkeep). A sticky
 // left rail scroll-spies the sections on the right. Content is kept honest to
-// what the CLI actually does today: token auth only (no `devplat login`
-// yet), Docker-API access plus per-container-port mirroring over the tunnel
-// — features still on the roadmap are labelled, not implied.
+// what the CLI actually does today: browser or token auth (`devplat login`
+// plus DEVPLAT_TOKEN/--token), Docker-API access plus per-container-port
+// mirroring over the tunnel — features still on the roadmap are labelled,
+// not implied.
 
 interface Section {
   id: string;
@@ -131,24 +132,24 @@ export default function Docs({ go }: { go: (p: Page) => void }) {
 
           {/* AUTH */}
           <section className="space-y-3">
-            <H id="authenticate" kicker="Step 2">Authenticate with a token</H>
+            <H id="authenticate" kicker="Step 2">Authenticate</H>
             <p className="text-[--ink-soft]">
-              Access is by scoped API token. Create one in the dashboard under{' '}
-              <button onClick={() => go('app')} className="link-underline text-[--ink] font-medium">Tokens</button>{' '}
-              (scope <span className="font-mono2 text-[13px]">ci:run</span>), then hand it to the
-              CLI through the <span className="font-mono2 text-[13px]">DEVPLAT_TOKEN</span>{' '}
-              environment variable or the <span className="font-mono2 text-[13px]">--token</span>{' '}
-              flag. The token authorizes test runs only — it never grants dashboard access, and you
-              can revoke it any time.
+              For local use, <span className="font-mono2 text-[13px]">devplat login</span> signs you
+              in through the browser and stores a token for you — no token to copy by hand. It prints
+              a code, you approve it in the dashboard, and every later{' '}
+              <span className="font-mono2 text-[13px]">devplat connect</span> just works.
             </p>
-            <Code>{`export DEVPLAT_TOKEN=dvp_ci_xxxxxxxxxxxxxxxxxxxx`}</Code>
+            <Code>{`$ devplat login
+  → open https://devplat.ch/activate and enter code: WXYZ-1234
+  ✓ logged in — token saved`}</Code>
             <p className="text-sm text-[--ink-soft]">
-              <span className="chip-soon">Roadmap</span>{' '}
-              <span className="align-middle">
-                An interactive <span className="font-mono2 text-[13px]">devplat login</span> (browser
-                sign-in, credential stored in your OS keychain) so local use won't need a
-                pre-issued token.
-              </span>
+              Already have a token, or logging in on a machine with no browser? Pass it directly —{' '}
+              <span className="font-mono2 text-[13px]">devplat login --token dvp_…</span> stores it, or
+              set <span className="font-mono2 text-[13px]">DEVPLAT_TOKEN</span> per run. Create tokens
+              in the dashboard under{' '}
+              <button onClick={() => go('app')} className="link-underline text-[--ink] font-medium">Tokens</button>.
+              Any token authorizes test runs only — never dashboard access — and{' '}
+              <span className="font-mono2 text-[13px]">devplat logout</span> revokes it.
             </p>
           </section>
 
@@ -288,7 +289,6 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
             <ul className="mt-4 space-y-3">
               {[
                 ['Pre-warmed snapshots', 'Sub-second container starts from Firecracker snapshots, rather than a cold daemon boot each run.'],
-                ['devplat login', 'Interactive browser sign-in with credentials in your OS keychain, for local use without a pre-issued token.'],
                 ['macOS & arm64 builds', 'Native binaries beyond today’s Linux/Windows amd64.'],
                 ['GitHub Action', 'A devplat/connect action wrapping install + connect into one CI step.'],
               ].map(([t, d]) => (

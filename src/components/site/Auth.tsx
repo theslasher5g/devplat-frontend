@@ -13,9 +13,10 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_or_expired_token: 'This link is invalid or has expired.',
   invalid_or_expired_invite: 'This invitation is invalid or has expired.',
   invite_for_different_email: 'This invitation was issued for a different email address.',
+  invalid_or_expired_code: 'That code is invalid or has expired. Run devplat login again to get a fresh one.',
 };
 
-function errText(err: unknown): string {
+export function errText(err: unknown): string {
   if (err instanceof ApiError) return ERROR_TEXT[err.code] ?? `Something went wrong (${err.code}).`;
   return 'Network error — is the API reachable?';
 }
@@ -34,7 +35,7 @@ function Field({ label, type, value, onChange, placeholder, autoFocus }: {
   );
 }
 
-function AuthShell({ children }: { children: React.ReactNode }) {
+export function AuthShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   return (
     <main className="min-h-screen grid lg:grid-cols-2">

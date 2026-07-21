@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import Activate from '@/components/site/Activate';
 import Admin from '@/components/site/Admin';
 import Auth, { InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
 import Contact from '@/components/site/Contact';
@@ -129,6 +130,7 @@ export default function App() {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/invite" element={<InviteAccept />} />
+          <Route path="/activate" element={<RequireAuth><Activate /></RequireAuth>} />
           <Route path="/app" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/app/:view" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
