@@ -1,11 +1,50 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  API_URL, ApiError, api,
-  type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type InvoiceInfo, type SubscriptionInfo, type TeamInfo,
+  API_URL, ApiError, LEVEL_META, api,
+  type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type InvoiceInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo } from './Shared';
+
+/** Info panel shown across all dashboard views: active incidents, general
+ *  announcements, and upcoming maintenance, pulled from the same /status feed
+ *  the public page uses. Renders nothing when there's nothing to say. */
+function StatusBanner() {
+  const [data, setData] = useState<StatusSummary | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => api<StatusSummary>('/status').then((d) => { if (alive) setData(d); }).catch(() => {});
+    void load();
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!data) return null;
+  const items = [...data.active, ...data.upcoming];
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-6 space-y-2">
+      {items.map((p) => {
+        const isIncident = p.type === 'incident';
+        const color = isIncident ? LEVEL_META.degraded.color : p.type === 'maintenance' ? LEVEL_META.maintenance.color : '#8AB8F0';
+        const latest = p.updates[p.updates.length - 1];
+        return (
+          <a key={p.id} href="/status" className="block border border-[--dark-line] bg-white/[0.02] hover:bg-white/[0.04] p-4 transition-colors"
+            style={{ borderLeftColor: color, borderLeftWidth: 3 }}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+              <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                {p.type === 'announcement' ? 'Announcement' : p.type === 'maintenance' ? 'Maintenance' : 'Incident'} · {p.state.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="mt-1.5 text-sm font-medium">{p.title}</p>
+            <p className="mt-1 text-xs text-[--dark-muted]">{latest?.body ?? p.body}</p>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Pings the real /health endpoint instead of showing a hardcoded "operational". */
 function useApiHealth(): boolean | null {
@@ -786,6 +825,7 @@ export default function Dashboard() {
           ))}
         </div>
         <main className="p-5 lg:p-8">
+          <StatusBanner />
           <div key={view} className="view-in">
             {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}
             {view === 'pipelines' && <Pipelines />}

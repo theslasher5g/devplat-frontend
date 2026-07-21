@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type AdminHost, type AdminOverview, type AdminTeam } from '@/lib/api';
+import {
+  api, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam,
+  type PostType, type StatusLevel, type StatusPost,
+} from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo } from './Shared';
+
+const COMPONENT_LEVELS: StatusLevel[] = ['operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance'];
+const STATES_BY_TYPE: Record<PostType, string[]> = {
+  incident: ['investigating', 'identified', 'monitoring', 'resolved'],
+  maintenance: ['scheduled', 'in_progress', 'completed'],
+  announcement: ['published'],
+};
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <div className={`bg-[--dark-card] border border-[--dark-line] ${className}`}>{children}</div>;
@@ -160,6 +170,142 @@ function DeleteTeamModal({ team, onCancel, onDeleted }: { team: AdminTeam; onCan
   );
 }
 
+const inputCls = 'w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white';
+
+/** One post row with its update thread and an add-update form. */
+function PostRow({ post, onChanged }: { post: StatusPost; onChanged: () => void }) {
+  const [body, setBody] = useState('');
+  const [state, setState] = useState('');
+  const states = STATES_BY_TYPE[post.type];
+  const addUpdate = async () => {
+    if (!body.trim()) return;
+    await api(`/admin/status/posts/${post.id}/updates`, { body: { body, ...(state ? { state } : {}) } });
+    setBody(''); setState(''); onChanged();
+  };
+  const del = async () => { await api(`/admin/status/posts/${post.id}`, { method: 'DELETE' }); onChanged(); };
+  return (
+    <div className="border border-[--dark-line] p-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] border border-[--dark-line] px-2 py-0.5">{post.type}</span>
+        <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">{post.state.replace(/_/g, ' ')}</span>
+        {post.resolvedAt && <span className="font-mono2 text-[10px] text-[#57C99A]">closed</span>}
+        <button onClick={del} className="ml-auto font-mono2 text-[10px] text-[--red]/80 hover:text-[--red]">Delete</button>
+      </div>
+      <p className="mt-1.5 text-sm font-medium">{post.title}</p>
+      {post.body && <p className="mt-1 text-xs text-[--dark-muted] whitespace-pre-wrap">{post.body}</p>}
+      {post.updates.length > 0 && (
+        <ol className="mt-3 space-y-2 border-l border-[--dark-line] pl-3">
+          {post.updates.map((u) => (
+            <li key={u.id} className="text-xs">
+              {u.state && <span className="font-mono2 text-[10px] uppercase tracking-widest text-white mr-2">{u.state.replace(/_/g, ' ')}</span>}
+              <span className="text-[--dark-muted]">{u.body}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <div className="mt-3 flex gap-2 flex-wrap items-center">
+        <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Post an update…" className={`${inputCls} flex-1 min-w-[180px]`} />
+        <select value={state} onChange={(e) => setState(e.target.value)} className="bg-[--dark] border border-[--dark-line] px-2 py-2 text-sm">
+          <option value="">state…</option>
+          {states.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+        </select>
+        <button onClick={addUpdate} className="font-mono2 text-[10px] uppercase tracking-widest border border-[--dark-line] px-3 py-2 hover:border-white">Post</button>
+      </div>
+    </div>
+  );
+}
+
+function StatusAdmin() {
+  const [components, setComponents] = useState<AdminStatusComponent[] | null>(null);
+  const [posts, setPosts] = useState<StatusPost[] | null>(null);
+  const [type, setType] = useState<PostType>('incident');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [impact, setImpact] = useState('minor');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+
+  const loadComponents = () => api<{ components: AdminStatusComponent[] }>('/admin/status/components').then((d) => setComponents(d.components)).catch(() => {});
+  const loadPosts = () => api<{ posts: StatusPost[] }>('/admin/status/posts').then((d) => setPosts(d.posts)).catch(() => {});
+  useEffect(() => { void loadComponents(); void loadPosts(); }, []);
+
+  const setOverride = async (c: AdminStatusComponent, val: string) => {
+    await api(`/admin/status/components/${c.id}`, { method: 'PATCH', body: { manualStatus: val === '' ? null : val } });
+    void loadComponents();
+  };
+
+  const createPost = async () => {
+    if (!title.trim()) return;
+    await api('/admin/status/posts', {
+      body: {
+        type, title, body, impact,
+        ...(type === 'maintenance' && start ? { scheduledStart: new Date(start).toISOString() } : {}),
+        ...(type === 'maintenance' && end ? { scheduledEnd: new Date(end).toISOString() } : {}),
+      },
+    });
+    setTitle(''); setBody(''); setStart(''); setEnd('');
+    void loadPosts();
+  };
+
+  return (
+    <Card>
+      <CardHead title="Status page" right={<a href="/status" target="_blank" rel="noreferrer" className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">View public page ↗</a>} />
+      <div className="p-5 grid gap-6">
+        {/* Components */}
+        <div>
+          <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-3">Components — override the auto status, or leave on auto</p>
+          <div className="divide-y divide-[--dark-line] border border-[--dark-line]">
+            {(components ?? []).map((c) => (
+              <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="text-sm">{c.name}</span>
+                <span className="font-mono2 text-[10px] text-[--dark-muted]">{c.source}</span>
+                <select value={c.manualStatus ?? ''} onChange={(e) => void setOverride(c, e.target.value)}
+                  className="ml-auto bg-[--dark] border border-[--dark-line] px-2 py-1.5 text-sm">
+                  <option value="">{c.source === 'manual' ? 'operational' : 'auto'}</option>
+                  {COMPONENT_LEVELS.map((l) => <option key={l} value={l}>{l.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* New post */}
+        <div>
+          <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-3">Post an incident, maintenance, or announcement</p>
+          <div className="grid gap-2 sm:grid-cols-[140px_1fr] items-start">
+            <select value={type} onChange={(e) => setType(e.target.value as PostType)} className="bg-[--dark] border border-[--dark-line] px-3 py-2 text-sm">
+              <option value="incident">Incident</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="announcement">Announcement</option>
+            </select>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className={inputCls} />
+            <select value={impact} onChange={(e) => setImpact(e.target.value)} className="bg-[--dark] border border-[--dark-line] px-3 py-2 text-sm">
+              {['none', 'minor', 'major', 'critical', 'maintenance'].map((i) => <option key={i} value={i}>impact: {i}</option>)}
+            </select>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Body (optional)" rows={2} className={inputCls} />
+            {type === 'maintenance' && (
+              <>
+                <span className="font-mono2 text-[10px] text-[--dark-muted] self-center">Window</span>
+                <div className="flex gap-2 flex-wrap">
+                  <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} className="bg-transparent border border-[--dark-line] px-3 py-2 text-sm" />
+                  <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} className="bg-transparent border border-[--dark-line] px-3 py-2 text-sm" />
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={createPost} disabled={!title.trim()} className="mt-3 font-mono2 text-[10px] uppercase tracking-widest border border-[--dark-line] px-4 py-2 hover:border-white disabled:opacity-40">Publish</button>
+        </div>
+
+        {/* Existing posts */}
+        <div className="space-y-2">
+          {(posts ?? []).map((p) => <PostRow key={p.id} post={p} onChanged={loadPosts} />)}
+          {posts?.length === 0 && <p className="font-mono2 text-xs text-[--dark-muted]">No posts yet.</p>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const { me, logout } = useAuth();
@@ -300,6 +446,9 @@ export default function Admin() {
             </table>
           </div>
         </Card>
+
+        {/* status page management */}
+        <StatusAdmin />
 
         {/* cache */}
         <Card>

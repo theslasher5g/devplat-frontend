@@ -1,6 +1,26 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { api, LEVEL_META, type StatusSummary } from '@/lib/api';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';
+
+/** Live status badge for the footer — reflects the real aggregate from
+ *  /status (was a hardcoded "Operational") and links to the status page. */
+function FooterStatus() {
+  const [level, setLevel] = useState<StatusSummary['overall']['status'] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api<StatusSummary>('/status').then((d) => { if (alive) setLevel(d.overall.status); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const meta = level ? LEVEL_META[level] : null;
+  return (
+    <Link to="/status" className="mt-4 eyebrow inline-flex items-center gap-1.5 hover:opacity-80">
+      CH-BSL-1 ·{' '}
+      <span style={{ color: meta?.color ?? 'var(--ink-soft)' }}>{meta?.label ?? 'Status'}</span>
+    </Link>
+  );
+}
 
 export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'docs' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
 
@@ -102,7 +122,7 @@ export function Footer({ go }: { go: (p: Page) => void }) {
         <div>
           <Logo onClick={() => go('home')} />
           <p className="mt-3 text-sm text-[--ink-soft] max-w-[24ch]">Remote backend for Testcontainers. Hosted in Switzerland.</p>
-          <p className="mt-4 eyebrow">CH-BSL-1 · <span className="text-[--green]">Operational</span></p>
+          <FooterStatus />
         </div>
         <div>
           <p className="eyebrow mb-3">Product</p>

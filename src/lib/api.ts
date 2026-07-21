@@ -92,3 +92,45 @@ export interface AdminTeam {
   subscriptionStatus: string | null; currentPeriodEnd: string | null;
   members: number; vmStarts30d: number; createdAt: string; ownerVerified: boolean;
 }
+
+/* ---------- Status page / incidents ---------- */
+
+export type StatusLevel = 'operational' | 'maintenance' | 'degraded' | 'partial_outage' | 'major_outage';
+export type PostType = 'incident' | 'maintenance' | 'announcement';
+
+// Single source of truth for how each status level looks/reads, shared by the
+// status page, the dashboard panel, and the footer badge. Lives here (a leaf
+// module both Shared and Status import) to avoid a circular import between them.
+export const LEVEL_META: Record<StatusLevel, { color: string; label: string }> = {
+  operational: { color: '#23A26D', label: 'Operational' },
+  maintenance: { color: '#D99000', label: 'Maintenance' },
+  degraded: { color: '#D99000', label: 'Degraded' },
+  partial_outage: { color: '#E63312', label: 'Partial outage' },
+  major_outage: { color: '#E63312', label: 'Major outage' },
+};
+
+export interface StatusPostUpdate {
+  id: string; state: string | null; body: string; createdAt: string;
+}
+
+export interface StatusPost {
+  id: string; type: PostType; title: string; body: string; impact: string; state: string;
+  affectedComponents: string[]; scheduledStart: string | null; scheduledEnd: string | null;
+  createdAt: string; updatedAt: string; resolvedAt: string | null;
+  updates: StatusPostUpdate[];
+}
+
+export interface StatusComponent { key: string; name: string; status: StatusLevel }
+
+export interface StatusSummary {
+  overall: { status: StatusLevel; label: string };
+  components: StatusComponent[];
+  active: StatusPost[];
+  upcoming: StatusPost[];
+  recent: StatusPost[];
+}
+
+export interface AdminStatusComponent {
+  id: string; key: string; name: string; source: 'api' | 'compute' | 'manual';
+  manualStatus: StatusLevel | null; position: number;
+}
