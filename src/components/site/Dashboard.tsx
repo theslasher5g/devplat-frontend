@@ -151,13 +151,13 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
                 <span className="font-mono2 text-white">devplat connect</span> on.
               </p>
               <ol className="mt-5 space-y-3 font-mono2 text-xs text-[--dark-muted]">
-                <li>1 · <button onClick={() => goView('tokens')} className="text-white hover:text-[#8AB8F0]">Create an API token</button> for your CI or laptop</li>
                 <li className="flex items-center gap-2 flex-wrap">
-                  <span>2 · Install the CLI:</span>
+                  <span>1 · Install the CLI:</span>
                   <code className="text-white bg-black/40 border border-[--dark-line] px-2 py-1">curl -fsSL https://get.devplat.ch | sh</code>
                   <CopyButton value="curl -fsSL https://get.devplat.ch | sh" />
                 </li>
-                <li>3 · <span className="text-white">devplat connect --token $DEVPLAT_TOKEN</span> — then run your tests as usual</li>
+                <li>2 · <span className="text-white">devplat login</span> — browser sign-in, then run your tests in the session</li>
+                <li>3 · In CI, use a <button onClick={() => goView('tokens')} className="text-white hover:text-[#8AB8F0]">token</button> and one line: <span className="text-white">devplat connect --exec "mvn verify"</span></li>
               </ol>
             </div>
           )}
@@ -194,17 +194,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: devplat/connect@v1
-        with:
-          token: \${{ secrets.DEVPLAT_TOKEN }}
-      - run: mvn verify`
+      - run: curl -fsSL https://get.devplat.ch | sh
+      - run: devplat connect --exec "mvn verify"
+        env:
+          DEVPLAT_TOKEN: \${{ secrets.DEVPLAT_TOKEN }}`
     : `# ${repoComment}.gitlab-ci.yml
 integration-tests:
-  before_script:
-    - curl -sf https://get.devplat.ch | sh
-    - devplat connect --token $DEVPLAT_TOKEN
   script:
-    - mvn verify`;
+    - curl -fsSL https://get.devplat.ch | sh
+    - devplat connect --exec "mvn verify"`;
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_1.3fr]">
       <Card className="p-5 h-fit">

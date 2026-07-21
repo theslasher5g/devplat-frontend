@@ -79,8 +79,8 @@ export default function Download({ go }: { go: (p: Page) => void }) {
             <ol className="mt-6 space-y-5 text-sm text-[--ink-soft]">
               {[
                 ['curl -fsSL https://get.devplat.ch | sh', 'One-time install. Puts the devplat binary on your PATH.'],
-                ['devplat connect --token $DEVPLAT_TOKEN', 'Builds the tunnel, prints the endpoint, and exports DOCKER_HOST for the current shell. Stays connected until you close it. Create a token in the dashboard under Tokens.'],
-                ['mvn verify', 'Or gradle test, pytest, go test — your test command, unchanged. Testcontainers finds the Docker API and never notices the difference.'],
+                ['devplat login', 'Browser sign-in — stores a token so later runs need no --token. Opens a tunnelled session with DOCKER_HOST set; type your commands in it. (Already have a token? devplat connect --token $DEVPLAT_TOKEN works too.)'],
+                ['mvn verify', 'Or gradle test, pytest, go test — run it in the session, unchanged. Testcontainers finds the Docker API and never notices the difference. In CI, one line: devplat connect --exec "mvn verify".'],
               ].map(([cmd, desc], i) => (
                 <li key={cmd} className="flex gap-4">
                   <span className="font-doto text-xl text-[--red] shrink-0">{i + 1}</span>
@@ -137,7 +137,7 @@ devplat-${CLI_VERSION}-linux-amd64.tar.gz: OK`}</pre>
 
       <section className="bg-[--ink] text-[--dark-text]">
         <div className="mx-auto max-w-6xl px-5 py-16 md:flex items-center justify-between gap-8">
-          <p className="text-2xl font-semibold max-w-[30ch]">Installed? Create a token and connect.</p>
+          <p className="text-2xl font-semibold max-w-[30ch]">Installed? Sign in and connect.</p>
           <div className="mt-6 md:mt-0 flex gap-3 shrink-0">
             <button onClick={() => go('auth')} className="bg-white text-[--ink] px-6 py-3 font-medium hover:bg-[--red] hover:text-white transition-colors">Create an account</button>
             <button onClick={() => go('technik')} className="border border-[--dark-line] px-6 py-3 hover:border-white transition-colors">How it works</button>

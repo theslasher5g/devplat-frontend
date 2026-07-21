@@ -9,27 +9,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: devplat/connect@v1        # ← the one line
-        with:
-          token: \${{ secrets.DEVPLAT_TOKEN }}
-      - run: mvn verify                   # unchanged`,
+      - run: curl -fsSL https://get.devplat.ch | sh
+      - run: devplat connect --exec "mvn verify"   # ← the one line
+        env:
+          DEVPLAT_TOKEN: \${{ secrets.DEVPLAT_TOKEN }}`,
   'GitLab CI': `# .gitlab-ci.yml
 integration-tests:
   image: eclipse-temurin:21
-  before_script:
-    - curl -sf https://get.devplat.ch | sh
-    - devplat connect --token $DEVPLAT_TOKEN
   script:
-    - mvn verify`,
+    - curl -fsSL https://get.devplat.ch | sh
+    - devplat connect --exec "mvn verify"`,
   'Local (CLI)': `# once
 $ curl -fsSL https://get.devplat.ch | sh
+$ devplat login          # browser sign-in — token stored
 
-# per session — connect with your ci:run token
-$ devplat connect --token $DEVPLAT_TOKEN
+# per run: opens a session with DOCKER_HOST set
+$ devplat connect
   ✓ assigned · tunnel active
-  DOCKER_HOST=tcp://127.0.0.1:52731
-
-$ mvn verify            # or gradle, pytest, go test …`,
+devplat ❯ mvn verify     # or gradle, pytest, go test …`,
   'testcontainers.properties': `# ~/.testcontainers.properties
 # Point Testcontainers at the tunnel directly instead of exporting
 # DOCKER_HOST. The endpoint is printed by 'devplat connect'.

@@ -170,19 +170,17 @@ export default function Docs({ go }: { go: (p: Page) => void }) {
 
   DOCKER_HOST=tcp://127.0.0.1:52731
 
-$ mvn verify        # or gradle test, pytest, go test …`}</Code>
+devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
             <p className="text-sm text-[--ink-soft]">
               The environment is released when you leave the session, and a server-side TTL tears
               it down regardless — nothing outlives the run.
             </p>
-            <div className="mt-4 border-l-2 border-[--amber] pl-4 py-1">
-              <p className="text-sm text-[--ink]">
-                <span className="font-medium">Port publishing caveat.</span> Reaching the Docker API
-                works today. Container <span className="font-mono2 text-[13px]">-p</span> published
-                ports being reachable from your machine is{' '}
-                <span className="chip-soon">Roadmap</span> — see below.
-              </p>
-            </div>
+            <p className="text-sm text-[--ink-soft]">
+              Container <span className="font-mono2 text-[13px]">-p</span> published ports are
+              mirrored onto the same port on <span className="font-mono2 text-[13px]">127.0.0.1</span>{' '}
+              while you're connected, so Testcontainers' mapped-port access works unchanged. TCP
+              only; a locally-taken port is skipped with a warning.
+            </p>
           </section>
 
           {/* CI */}
@@ -190,7 +188,10 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
             <H id="ci" kicker="Automation">Use it in CI</H>
             <p className="text-[--ink-soft]">
               Same binary, headless. Store your <span className="font-mono2 text-[13px]">ci:run</span>{' '}
-              token as a secret and install + connect in the job.
+              token as a secret and use <span className="font-mono2 text-[13px]">--exec</span>: it runs
+              your test command with <span className="font-mono2 text-[13px]">DOCKER_HOST</span> set,
+              exits with your command's exit code (so a failed test fails the job), and releases the
+              environment when it's done.
             </p>
             <p className="text-sm text-[--ink-soft] font-medium mt-4">GitHub Actions</p>
             <Code>{`- name: Install devplat
@@ -198,16 +199,13 @@ $ mvn verify        # or gradle test, pytest, go test …`}</Code>
 - name: Run integration tests
   env:
     DEVPLAT_TOKEN: \${{ secrets.DEVPLAT_TOKEN }}
-  run: |
-    devplat connect --token "$DEVPLAT_TOKEN" &
-    mvn verify`}</Code>
+  run: devplat connect --exec "mvn verify"`}</Code>
             <p className="text-sm text-[--ink-soft] font-medium mt-4">GitLab CI</p>
             <Code>{`integration-tests:
   image: eclipse-temurin:21
   script:
     - curl -fsSL https://get.devplat.ch | sh
-    - devplat connect --token "$DEVPLAT_TOKEN" &
-    - mvn verify`}</Code>
+    - devplat connect --exec "mvn verify"`}</Code>
             <p className="text-sm text-[--ink-soft]">
               <span className="chip-soon">Roadmap</span>{' '}
               <span className="align-middle">

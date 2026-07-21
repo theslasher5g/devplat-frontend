@@ -22,7 +22,7 @@ export default function Home({ go }: { go: (p: Page) => void }) {
               <button onClick={() => go('technik')} className="btn-ghost px-6 py-3">How it works</button>
             </div>
             <p className="rise rise-4 mt-6 font-mono2 text-xs text-[--ink-soft]">
-              $ devplat connect && mvn verify <span className="text-[--red]">←</span> that's the whole integration.
+              $ devplat connect --exec "mvn verify" <span className="text-[--red]">←</span> that's the whole integration.
             </p>
           </div>
           <div className="rise rise-3"><TerminalDemo /></div>
@@ -72,8 +72,8 @@ export default function Home({ go }: { go: (p: Page) => void }) {
 $ mvn verify
 
 # after: docker runs in Basel
-$ devplat connect
-$ mvn verify   # unchanged.`}</pre>
+$ devplat connect --exec "mvn verify"
+#                       ^ unchanged.`}</pre>
             </Reveal>
             <Reveal delay={80} className="bg-white p-8 lift">
               <p className="font-doto text-4xl text-[--red]">02</p>
