@@ -120,7 +120,12 @@ export interface StatusPost {
   updates: StatusPostUpdate[];
 }
 
-export interface StatusComponent { key: string; name: string; status: StatusLevel }
+export interface DayStatus { date: string; status: StatusLevel }
+export interface StatusComponent {
+  key: string; name: string; status: StatusLevel;
+  // Present only when the summary was fetched with historyDays>0.
+  uptime?: number; history?: DayStatus[];
+}
 
 export interface StatusSummary {
   overall: { status: StatusLevel; label: string };
@@ -128,6 +133,7 @@ export interface StatusSummary {
   active: StatusPost[];
   upcoming: StatusPost[];
   recent: StatusPost[];
+  window?: { start: string; end: string };
 }
 
 export interface AdminStatusComponent {
