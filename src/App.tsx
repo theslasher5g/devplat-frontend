@@ -12,7 +12,7 @@ import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
 import { Preise, Compliance } from '@/components/site/PreiseCompliance';
 import Security from '@/components/site/Security';
 import { Footer, Nav, type Page } from '@/components/site/Shared';
-import Status from '@/components/site/Status';
+import Status, { StatusConfirmPage, StatusUnsubscribePage } from '@/components/site/Status';
 import Technik from '@/components/site/Technik';
 import { AuthProvider, RequireAuth } from '@/lib/auth';
 
@@ -128,6 +128,8 @@ export default function App() {
           <Route path="/legal/terms" element={<MarketingPage page="terms" />} />
           <Route path="/legal/privacy" element={<MarketingPage page="privacy" />} />
           <Route path="/status" element={<Status />} />
+          <Route path="/status/confirm" element={<StatusConfirmPage />} />
+          <Route path="/status/unsubscribe" element={<StatusUnsubscribePage />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/reset-password" element={<ResetPassword />} />

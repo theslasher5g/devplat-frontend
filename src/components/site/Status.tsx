@@ -1,7 +1,94 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, LEVEL_META, type DayStatus, type StatusComponent, type StatusLevel, type StatusPost, type StatusSummary } from '@/lib/api';
 import { Logo } from './Shared';
+
+/** Modal to subscribe an email to status updates (double opt-in — the API
+ *  sends a confirmation link). */
+function SubscribeModal({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const submit = async () => {
+    if (!email.trim()) return;
+    setState('sending');
+    try {
+      await api('/status/subscribe', { body: { email: email.trim() } });
+      setState('sent');
+    } catch {
+      setState('error');
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-5" onClick={onClose}>
+      <div className="bg-[--paper] border hairline max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="eyebrow eyebrow-dot mb-3">Status updates</p>
+        {state === 'sent' ? (
+          <>
+            <h2 className="text-lg font-semibold">Almost there.</h2>
+            <p className="mt-2 text-sm text-[--ink-soft]">Check your inbox and confirm your subscription. You'll then get incidents, maintenance and announcements by email.</p>
+            <button onClick={onClose} className="btn-ink inline-block mt-5 px-6 py-2.5 text-sm">Done</button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold">Subscribe to updates</h2>
+            <p className="mt-1.5 text-sm text-[--ink-soft]">Get an email when there's an incident, maintenance, or announcement.</p>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+              type="email" placeholder="you@example.com" autoFocus
+              className="mt-4 w-full border hairline bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[--ink]" />
+            {state === 'error' && <p className="mt-2 text-sm text-[--red]">Something went wrong — please try again.</p>}
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => void submit()} disabled={state === 'sending' || !email.trim()} className="btn-ink px-6 py-2.5 text-sm disabled:opacity-50">
+                {state === 'sending' ? 'Sending…' : 'Subscribe'}
+              </button>
+              <button onClick={onClose} className="px-4 py-2.5 text-sm text-[--ink-soft] hover:text-[--ink]">Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Small centered result page shared by the confirm/unsubscribe links. */
+function ResultShell({ title, body }: { title: string; body: string }) {
+  return (
+    <main className="min-h-screen bg-[--paper] grid place-items-center px-5">
+      <div className="max-w-sm w-full text-center">
+        <div className="flex justify-center mb-6"><Logo onClick={() => { window.location.href = '/'; }} /></div>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-2 text-sm text-[--ink-soft]">{body}</p>
+        <Link to="/status" className="btn-ink inline-block mt-8 px-8 py-3 text-sm">Go to status page</Link>
+      </div>
+    </main>
+  );
+}
+
+/** /status/confirm?token=… — confirms a pending email subscription. */
+export function StatusConfirmPage() {
+  const [params] = useSearchParams();
+  const [state, setState] = useState<'working' | 'done' | 'failed'>('working');
+  useEffect(() => {
+    const token = params.get('token');
+    if (!token) { setState('failed'); return; }
+    api('/status/confirm', { body: { token } }).then(() => setState('done')).catch(() => setState('failed'));
+  }, [params]);
+  if (state === 'working') return <ResultShell title="Confirming…" body="One moment." />;
+  if (state === 'done') return <ResultShell title="Subscription confirmed." body="You'll now receive devplat status updates by email." />;
+  return <ResultShell title="Link invalid." body="This confirmation link is invalid or has already been used. Subscribe again from the status page." />;
+}
+
+/** /status/unsubscribe?token=… — one-click unsubscribe from a notification. */
+export function StatusUnsubscribePage() {
+  const [params] = useSearchParams();
+  const [state, setState] = useState<'working' | 'done'>('working');
+  useEffect(() => {
+    const token = params.get('token') ?? '';
+    api('/status/unsubscribe', { body: { token } }).then(() => setState('done')).catch(() => setState('done'));
+  }, [params]);
+  return state === 'working'
+    ? <ResultShell title="Unsubscribing…" body="One moment." />
+    : <ResultShell title="Unsubscribed." body="You won't receive any more devplat status emails. You can resubscribe any time." />;
+}
 
 const HISTORY_DAYS = 90;
 
@@ -145,6 +232,7 @@ export default function Status() {
   const [data, setData] = useState<StatusSummary | null>(null);
   const [err, setErr] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -170,8 +258,9 @@ export default function Status() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Logo onClick={() => { window.location.href = '/'; }} />
-          <Link to="/contact" className="text-sm border hairline px-4 py-2 bg-[--ink] text-[--paper] hover:opacity-90">Subscribe to updates</Link>
+          <button onClick={() => setSubscribeOpen(true)} className="text-sm border hairline px-4 py-2 bg-[--ink] text-[--paper] hover:opacity-90">Subscribe to updates</button>
         </div>
+        {subscribeOpen && <SubscribeModal onClose={() => setSubscribeOpen(false)} />}
 
         {err && !data ? (
           <div className="border hairline p-6" style={{ borderLeftColor: LEVEL_META.major_outage.color, borderLeftWidth: 3 }}>
