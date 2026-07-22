@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, LEVEL_META, type DayStatus, type StatusLevel, type StatusPost, type StatusSummary } from '@/lib/api';
+import { api, LEVEL_META, type DayStatus, type StatusComponent, type StatusLevel, type StatusPost, type StatusSummary } from '@/lib/api';
 import { Logo } from './Shared';
 
 const HISTORY_DAYS = 90;
@@ -100,6 +100,46 @@ function PostCard({ post, compact = false }: { post: StatusPost; compact?: boole
   );
 }
 
+/** A component row — a leaf, or a group with an expandable member list
+ *  ("N components ⌄") whose members each get their own status + uptime bar. */
+function ComponentRow({ c }: { c: StatusComponent }) {
+  const [open, setOpen] = useState(false);
+  const isGroup = !!c.children && c.children.length > 0;
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-center gap-2">
+        <StatusIcon level={c.status} />
+        <span className="font-medium">{c.name}</span>
+        {isGroup && (
+          <button onClick={() => setOpen((o) => !o)} className="text-sm text-[--ink-soft] hover:text-[--ink] inline-flex items-center gap-1">
+            {c.children!.length} component{c.children!.length === 1 ? '' : 's'} <span className={`transition-transform ${open ? 'rotate-180' : ''}`}>⌄</span>
+          </button>
+        )}
+        <span className="ml-auto text-sm text-[--ink-soft] tabular-nums">
+          {c.uptime != null ? `${c.uptime.toFixed(2)}% uptime` : ''}
+        </span>
+      </div>
+      {c.history && c.history.length > 0 && <div className="mt-3"><UptimeBars history={c.history} /></div>}
+      {isGroup && open && (
+        <div className="mt-4 pl-7 space-y-4">
+          {c.children!.map((m) => (
+            <div key={m.key}>
+              <div className="flex items-center gap-2">
+                <StatusIcon level={m.status} />
+                <span className="text-sm font-medium">{m.name}</span>
+                <span className="ml-auto text-xs text-[--ink-soft] tabular-nums">
+                  {m.uptime != null ? `${m.uptime.toFixed(2)}% uptime` : ''}
+                </span>
+              </div>
+              {m.history && m.history.length > 0 && <div className="mt-2"><UptimeBars history={m.history} /></div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Status() {
   const [offset, setOffset] = useState(0); // 0 = present 90-day window
   const [data, setData] = useState<StatusSummary | null>(null);
@@ -191,18 +231,7 @@ export default function Status() {
               </div>
             </div>
             <div className="divide-y divide-[--line]">
-              {data.components.map((c) => (
-                <div key={c.key} className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <StatusIcon level={c.status} />
-                    <span className="font-medium">{c.name}</span>
-                    <span className="ml-auto text-sm text-[--ink-soft] tabular-nums">
-                      {c.uptime != null ? `${c.uptime.toFixed(2)}% uptime` : ''}
-                    </span>
-                  </div>
-                  {c.history && c.history.length > 0 && <div className="mt-3"><UptimeBars history={c.history} /></div>}
-                </div>
-              ))}
+              {data.components.map((c) => <ComponentRow key={c.key} c={c} />)}
             </div>
           </section>
         )}

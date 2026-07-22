@@ -125,6 +125,8 @@ export interface StatusComponent {
   key: string; name: string; status: StatusLevel;
   // Present only when the summary was fetched with historyDays>0.
   uptime?: number; history?: DayStatus[];
+  // Present on group nodes: the member components.
+  children?: StatusComponent[];
 }
 
 export interface StatusSummary {
@@ -138,5 +140,5 @@ export interface StatusSummary {
 
 export interface AdminStatusComponent {
   id: string; key: string; name: string; source: 'api' | 'compute' | 'manual';
-  manualStatus: StatusLevel | null; position: number;
+  manualStatus: StatusLevel | null; position: number; groupName: string | null;
 }

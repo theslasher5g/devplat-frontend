@@ -233,6 +233,10 @@ function StatusAdmin() {
     await api(`/admin/status/components/${c.id}`, { method: 'PATCH', body: { manualStatus: val === '' ? null : val } });
     void loadComponents();
   };
+  const setGroup = async (c: AdminStatusComponent, val: string) => {
+    await api(`/admin/status/components/${c.id}`, { method: 'PATCH', body: { groupName: val.trim() || null } });
+    void loadComponents();
+  };
 
   const createPost = async () => {
     if (!title.trim()) return;
@@ -253,14 +257,16 @@ function StatusAdmin() {
       <div className="p-5 grid gap-6">
         {/* Components */}
         <div>
-          <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-3">Components — override the auto status, or leave on auto</p>
+          <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-3">Components — override the auto status (or leave on auto), and set an optional group</p>
           <div className="divide-y divide-[--dark-line] border border-[--dark-line]">
             {(components ?? []).map((c) => (
               <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="text-sm">{c.name}</span>
                 <span className="font-mono2 text-[10px] text-[--dark-muted]">{c.source}</span>
+                <input defaultValue={c.groupName ?? ''} placeholder="group…" onBlur={(e) => { if ((e.target.value.trim() || null) !== (c.groupName ?? null)) void setGroup(c, e.target.value); }}
+                  className="ml-auto w-32 bg-[--dark] border border-[--dark-line] px-2 py-1.5 text-sm" />
                 <select value={c.manualStatus ?? ''} onChange={(e) => void setOverride(c, e.target.value)}
-                  className="ml-auto bg-[--dark] border border-[--dark-line] px-2 py-1.5 text-sm">
+                  className="bg-[--dark] border border-[--dark-line] px-2 py-1.5 text-sm">
                   <option value="">{c.source === 'manual' ? 'operational' : 'auto'}</option>
                   {COMPONENT_LEVELS.map((l) => <option key={l} value={l}>{l.replace(/_/g, ' ')}</option>)}
                 </select>
