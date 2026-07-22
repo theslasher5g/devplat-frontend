@@ -455,7 +455,11 @@ export default function Admin() {
           <CardHead title="Image cache hit rate" />
           <div className="p-5">
             <p className="font-doto text-4xl">{overview?.cacheHitRate == null ? '—' : `${(overview.cacheHitRate * 100).toFixed(1)}%`}</p>
-            <p className="text-xs text-[--dark-muted] mt-1">Reported by the registry proxy once the data plane is connected.</p>
+            <p className="text-xs text-[--dark-muted] mt-1">
+              {overview?.cacheHitRate == null
+                ? 'Pooled hits ÷ lookups across hosts — shows once a host reports registry-cache stats.'
+                : 'Pooled across all hosts (cumulative hits ÷ lookups from each registry proxy).'}
+            </p>
           </div>
         </Card>
       </main>
