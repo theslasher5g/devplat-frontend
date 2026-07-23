@@ -329,7 +329,7 @@ function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose:
             <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Environment</p>
             <p className="font-mono2 text-sm mt-0.5">{detail?.vmId ?? requestId.slice(0, 12)}</p>
           </div>
-          <button onClick={onClose} className="font-mono2 text-xs text-[--dark-muted] hover:text-white border border-[--dark-line] px-3 py-1.5">Close ✕</button>
+          <button onClick={onClose} className="font-mono2 text-xs text-[--dark-muted] hover:text-white border border-[--dark-line] px-3 py-1.5">Close</button>
         </div>
 
         <div className="p-5 grid gap-2">
@@ -344,7 +344,9 @@ function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose:
         <div className="px-5 pb-6">
           <div className="flex items-center justify-between mb-3">
             <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Containers</p>
-            {data && <span className={`font-mono2 text-[10px] ${data.reachable ? 'text-[#57C99A]' : 'text-[#E8B44C]'}`}>{data.reachable ? '● live' : 'unreachable'}</span>}
+            {data && (data.reachable
+              ? <span className="font-mono2 text-[10px] text-[#57C99A]"><span className="pulse-dot mr-1">●</span>live</span>
+              : <span className="font-mono2 text-[10px] text-[#E8B44C]">unreachable</span>)}
           </div>
           {data === null && <Skeleton className="h-16 w-full" />}
           {data && data.containers.length === 0 && (
@@ -361,7 +363,7 @@ function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose:
                 {c.ports.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {c.ports.map((p) => (
-                      <span key={p.publicPort} className="font-mono2 text-[10px] text-[#8AB8F0] border border-[#8AB8F0]/30 px-1.5 py-0.5" title={`container :${p.privatePort}`}>→ localhost:{p.publicPort}</span>
+                      <span key={p.publicPort} className="font-mono2 text-[10px] text-[#8AB8F0] border border-[#8AB8F0]/30 px-1.5 py-0.5" title={`container port ${p.privatePort}`}>localhost:{p.publicPort}</span>
                     ))}
                   </div>
                 )}
@@ -459,19 +461,25 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
           {envs?.map((e, i) => (
             <div key={e.requestId} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               className="row-in grid grid-cols-[1fr_auto] sm:grid-cols-[1.3fr_1fr_110px_auto_auto] gap-3 items-center px-5 py-3.5 font-mono2 text-xs hover:bg-white/[0.02]">
-              <button onClick={() => e.status === 'assigned' && setDrawer(e.requestId)}
-                className={`text-left ${e.status === 'assigned' ? 'cursor-pointer' : 'cursor-default'}`}
-                title={e.status === 'assigned' ? 'View containers & details' : undefined}>
-                <p className="font-sans text-sm font-medium">{e.vmId ?? 'waiting for slot'}{e.status === 'assigned' && <span className="text-[#8AB8F0] ml-2">details ↗</span>}</p>
+              <div>
+                <p className="font-sans text-sm font-medium">{e.vmId ?? 'waiting for slot'}</p>
                 <p className="text-[11px] text-[--dark-muted]">{e.requestId}</p>
-              </button>
+              </div>
               <span className="text-[--dark-muted] hidden sm:block break-all">{e.dockerEndpoint ?? '—'}</span>
               <span className="text-[--dark-muted] hidden sm:block">{fmtAgo(e.requestedAt)}</span>
               <Badge s={e.status} />
-              <button onClick={() => release(e.requestId)} disabled={busy === e.requestId}
-                className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10 disabled:opacity-50">
-                {busy === e.requestId ? '…' : 'Release'}
-              </button>
+              <div className="flex items-center gap-1 justify-end">
+                {e.status === 'assigned' && (
+                  <button onClick={() => setDrawer(e.requestId)}
+                    className="font-mono2 text-[10px] border border-[--dark-line] text-[--dark-muted] px-3 py-1.5 hover:border-white hover:text-white">
+                    Details
+                  </button>
+                )}
+                <button onClick={() => release(e.requestId)} disabled={busy === e.requestId}
+                  className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10 disabled:opacity-50">
+                  {busy === e.requestId ? '…' : 'Release'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
