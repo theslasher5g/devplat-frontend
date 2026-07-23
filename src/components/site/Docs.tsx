@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_URL } from '@/lib/api';
 import { Eyebrow, type Page } from './Shared';
 
 // A single-page docs experience in the site's own design system (no separate
@@ -20,6 +21,7 @@ const SECTIONS: Section[] = [
   { id: 'connect', title: 'Connect & run tests' },
   { id: 'ci', title: 'Use it in CI' },
   { id: 'cli-reference', title: 'CLI reference' },
+  { id: 'api-reference', title: 'REST API' },
   { id: 'limits', title: 'Plans & limits' },
   { id: 'troubleshooting', title: 'Troubleshooting' },
   { id: 'roadmap', title: 'Roadmap' },
@@ -241,6 +243,36 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
                 <span className="text-[--ink-soft]"><span className="font-mono2 text-[12px]">--api-url</span> flag, then <span className="font-mono2 text-[12px]">DEVPLAT_API_URL</span>, else <span className="font-mono2 text-[12px]">https://api.devplat.ch</span></span>
               </div>
             </div>
+          </section>
+
+          {/* API REFERENCE */}
+          <section className="space-y-3">
+            <H id="api-reference" kicker="Reference">REST API</H>
+            <p className="text-[--ink-soft]">
+              Everything the CLI does runs over a small REST API you can call directly — request an
+              environment, poll it, release it — authenticated with a{' '}
+              <span className="font-mono2 text-[13px]">dvp_…</span> token in an{' '}
+              <span className="font-mono2 text-[13px]">Authorization: Bearer</span> header. The full,
+              interactive reference is auto-generated (OpenAPI 3.0) and lets you try calls in the browser:
+            </p>
+            <div className="border hairline bg-white p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="font-medium">Interactive API reference</p>
+                <p className="text-sm text-[--ink-soft] mt-0.5">OpenAPI 3.0 · authorize with a token and try requests live.</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer" className="btn-ink px-5 py-2.5 text-sm">Open reference ↗</a>
+                <a href={`${API_URL}/openapi.json`} target="_blank" rel="noreferrer" className="btn-ghost px-5 py-2.5 text-sm">openapi.json</a>
+              </div>
+            </div>
+            <Code>{`# request an environment
+$ curl -X POST https://api.devplat.ch/environments \\
+    -H "Authorization: Bearer $DEVPLAT_TOKEN"
+# -> { "requestId": "6aea97af-…", "status": "queued" }
+
+# poll until assigned, then release when done
+$ curl https://api.devplat.ch/environments/6aea97af-… -H "Authorization: Bearer $DEVPLAT_TOKEN"
+$ curl -X DELETE https://api.devplat.ch/environments/6aea97af-… -H "Authorization: Bearer $DEVPLAT_TOKEN"`}</Code>
           </section>
 
           {/* LIMITS */}
