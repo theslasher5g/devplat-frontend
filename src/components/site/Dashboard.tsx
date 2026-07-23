@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   API_URL, ApiError, LEVEL_META, api,
-  type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type InvoiceInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo,
+  type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo,
+  type StatusSummary, type SubscriptionInfo, type TeamInfo, type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo, useCountUp } from './Shared';
@@ -132,10 +133,60 @@ function fmtAgo(iso: string | null): string {
   return fmtDate(iso);
 }
 
+function fmtDuration(seconds: number | null): string {
+  if (seconds == null) return '—';
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m ${seconds % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/** This team's daily VM-start activity — starts in green, failed starts in red
+ *  stacked on top. Mirrors the admin chart, scoped to one team. */
+function UsageChart({ series }: { series: UsageTimeseries }) {
+  const days = series.days;
+  const max = Math.max(1, ...days.map((d) => d.starts + d.failures));
+  const total = days.reduce((s, d) => s + d.starts, 0);
+  const failed = days.reduce((s, d) => s + d.failures, 0);
+  return (
+    <Card>
+      <CardHead title={`Your usage · ${days.length}d`} right={
+        <span className="font-mono2 text-[10px] text-[--dark-muted]">{total} starts{failed > 0 ? ` · ${failed} failed` : ''}</span>
+      } />
+      <div className="p-5">
+        {total + failed === 0 ? (
+          <p className="font-mono2 text-xs text-[--dark-muted]">No runs yet — your VM starts will chart here.</p>
+        ) : (
+          <>
+            <div className="flex items-end gap-[3px] h-24">
+              {days.map((d) => {
+                const h = ((d.starts + d.failures) / max) * 100;
+                const failPct = d.starts + d.failures > 0 ? (d.failures / (d.starts + d.failures)) * 100 : 0;
+                return (
+                  <div key={d.date} className="flex-1 flex flex-col justify-end h-full" title={`${d.date} · ${d.starts} starts, ${d.failures} failed`}>
+                    <div className="w-full bg-[#57C99A]/70" style={{ height: `${Math.max(h, d.starts + d.failures > 0 ? 5 : 0)}%` }}>
+                      {failPct > 0 && <div className="w-full bg-[#F07A6A]" style={{ height: `${failPct}%` }} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between font-mono2 text-[9px] text-[--dark-muted] mt-1.5">
+              <span>{days[0]?.date.slice(5)}</span><span>today</span>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 /* ---------- Overview: real environments from the scheduler ---------- */
 
 function Overview({ limit, planLabel, goView }: { limit: number; planLabel: string; goView: (v: View) => void }) {
   const [envs, setEnvs] = useState<EnvironmentInfo[] | null>(null);
+  const [runs, setRuns] = useState<EnvironmentRun[] | null>(null);
+  const [usage, setUsage] = useState<UsageTimeseries | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -143,6 +194,8 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
     api<{ environments: EnvironmentInfo[] }>('/environments')
       .then((d) => { setEnvs(d.environments); setErr(''); })
       .catch(() => setErr('Could not load environments.'));
+    api<{ runs: EnvironmentRun[] }>('/environments/history').then((d) => setRuns(d.runs)).catch(() => {});
+    api<UsageTimeseries>('/environments/usage?days=14').then(setUsage).catch(() => {});
   }, []);
   useEffect(() => {
     load();
@@ -226,17 +279,54 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
           ))}
         </div>
       </Card>
+
+      {usage && <UsageChart series={usage} />}
+
+      {/* Run history — past (released/failed) runs, collapsed by default noise. */}
+      {runs && runs.length > 0 && (
+        <Card>
+          <CardHead title="Run history" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">last {runs.length}</span>} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[640px]">
+              <thead>
+                <tr className="border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                  <th className="px-5 py-2.5 font-medium">Run</th>
+                  <th className="px-5 py-2.5 font-medium">Host</th>
+                  <th className="px-5 py-2.5 font-medium">Started</th>
+                  <th className="px-5 py-2.5 font-medium">Duration</th>
+                  <th className="px-5 py-2.5 font-medium">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[--dark-line]">
+                {runs.map((r) => (
+                  <tr key={r.requestId} className="font-mono2 text-xs">
+                    <td className="px-5 py-2.5"><span className="text-white">{r.vmId ?? r.requestId.slice(0, 12)}</span></td>
+                    <td className="px-5 py-2.5 text-[--dark-muted]">{r.hostName ?? '—'}{r.region ? ` · ${r.region}` : ''}</td>
+                    <td className="px-5 py-2.5 text-[--dark-muted]">{fmtAgo(r.requestedAt)}</td>
+                    <td className="px-5 py-2.5 text-[--dark-muted]">{fmtDuration(r.durationSeconds)}</td>
+                    <td className="px-5 py-2.5">
+                      {r.status === 'failed'
+                        ? <span className="text-[#F07A6A]" title={r.error ?? undefined}>failed</span>
+                        : <span className="text-[--dark-muted]">released</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
 
-function Pipelines() {
-  const [repo, setRepo] = useState('');
-  const [ci, setCi] = useState<'GitHub Actions' | 'GitLab CI'>('GitHub Actions');
-  const [copied, setCopied] = useState(false);
-  const repoComment = repo.trim() ? `${repo.trim()} · ` : '';
-  const yaml = ci === 'GitHub Actions'
-    ? `# ${repoComment}.github/workflows/ci.yml
+const CI_SYSTEMS = ['GitHub Actions', 'GitLab CI', 'CircleCI', 'Jenkins', 'Bitbucket'] as const;
+type CiSystem = (typeof CI_SYSTEMS)[number];
+
+function ciSnippet(ci: CiSystem, repoComment: string): string {
+  switch (ci) {
+    case 'GitHub Actions':
+      return `# ${repoComment}.github/workflows/ci.yml
 jobs:
   integration-tests:
     runs-on: ubuntu-latest
@@ -245,12 +335,62 @@ jobs:
       - run: curl -fsSL https://get.devplat.ch | sh
       - run: devplat connect --exec "mvn verify"
         env:
-          DEVPLAT_TOKEN: \${{ secrets.DEVPLAT_TOKEN }}`
-    : `# ${repoComment}.gitlab-ci.yml
+          DEVPLAT_TOKEN: \${{ secrets.DEVPLAT_TOKEN }}`;
+    case 'GitLab CI':
+      return `# ${repoComment}.gitlab-ci.yml
 integration-tests:
   script:
     - curl -fsSL https://get.devplat.ch | sh
-    - devplat connect --exec "mvn verify"`;
+    - devplat connect --exec "mvn verify"
+  # Set DEVPLAT_TOKEN as a masked CI/CD variable in project settings.`;
+    case 'CircleCI':
+      return `# ${repoComment}.circleci/config.yml
+version: 2.1
+jobs:
+  integration-tests:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - run: curl -fsSL https://get.devplat.ch | sh
+      - run: devplat connect --exec "mvn verify"
+        # Add DEVPLAT_TOKEN as a project environment variable.
+workflows:
+  test:
+    jobs: [integration-tests]`;
+    case 'Jenkins':
+      return `// ${repoComment}Jenkinsfile
+pipeline {
+  agent any
+  environment { DEVPLAT_TOKEN = credentials('devplat-token') }
+  stages {
+    stage('Integration tests') {
+      steps {
+        sh 'curl -fsSL https://get.devplat.ch | sh'
+        sh 'devplat connect --exec "mvn verify"'
+      }
+    }
+  }
+}`;
+    case 'Bitbucket':
+      return `# ${repoComment}bitbucket-pipelines.yml
+pipelines:
+  default:
+    - step:
+        name: Integration tests
+        script:
+          - curl -fsSL https://get.devplat.ch | sh
+          - devplat connect --exec "mvn verify"
+        # Add DEVPLAT_TOKEN as a repository variable (secured).`;
+  }
+}
+
+function Pipelines() {
+  const [repo, setRepo] = useState('');
+  const [ci, setCi] = useState<CiSystem>('GitHub Actions');
+  const [copied, setCopied] = useState(false);
+  const repoComment = repo.trim() ? `${repo.trim()} · ` : '';
+  const yaml = ciSnippet(ci, repoComment);
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_1.3fr]">
       <Card className="p-5 h-fit">
@@ -261,9 +401,9 @@ integration-tests:
             className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
         </label>
         <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">CI system</span>
-        <div className="flex gap-1 mt-1.5 font-mono2 text-xs">
-          {(['GitHub Actions', 'GitLab CI'] as const).map((k) => (
-            <button key={k} onClick={() => setCi(k)} className={`px-3 py-2 border ${ci === k ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted]'}`}>{k}</button>
+        <div className="flex gap-1 mt-1.5 font-mono2 text-xs flex-wrap">
+          {CI_SYSTEMS.map((k) => (
+            <button key={k} onClick={() => setCi(k)} className={`px-3 py-2 border ${ci === k ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted] hover:border-white/60'}`}>{k}</button>
           ))}
         </div>
         <p className="mt-5 text-xs text-[--dark-muted]">The token is stored as the secret <span className="font-mono2 text-white">DEVPLAT_TOKEN</span> — create it under API Tokens.</p>

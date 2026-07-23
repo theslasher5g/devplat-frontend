@@ -74,6 +74,23 @@ export interface EnvironmentInfo {
   requestedAt: string;
 }
 
+export interface EnvironmentRun {
+  requestId: string;
+  status: 'released' | 'failed';
+  vmId: string | null;
+  error: string | null;
+  requestedAt: string;
+  assignedAt: string | null;
+  releasedAt: string | null;
+  hostName: string | null;
+  region: string | null;
+  durationSeconds: number | null;
+}
+
+export interface UsageTimeseries {
+  days: { date: string; starts: number; failures: number }[];
+}
+
 export interface AdminOverview {
   totalTeams: number; newTeams7d: number; activeSubscriptions: number;
   mrrChf: number;
