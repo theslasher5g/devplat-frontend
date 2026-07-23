@@ -154,6 +154,38 @@ body {
 @keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .row-in { animation: row-in .4s cubic-bezier(.2,.7,.3,1) both; }
 
+/* ---- Data-flow stepper (How it works) ---- */
+/* Steps slide in from the left in sequence once the list scrolls into view;
+   a red "packet" then glides down the rail on a loop, reading as data flowing
+   from your test code down to Basel and back. Delay per step is set inline. */
+.flow-step {
+  opacity: 0; transform: translateX(-12px);
+  transition: opacity .5s cubic-bezier(.2,.7,.3,1), transform .5s cubic-bezier(.2,.7,.3,1);
+}
+.data-flow.is-visible .flow-step { opacity: 1; transform: none; }
+
+/* The number node gets a small pop as its step lands. */
+.flow-node { transition: transform .45s cubic-bezier(.2,.7,.3,1), border-color .3s ease; transform: scale(.6); }
+.data-flow.is-visible .flow-node { transform: scale(1); }
+
+/* Track for the travelling packet, laid over the per-step connector lines. */
+.flow-track { position: absolute; left: 16px; top: 8px; bottom: 28px; width: 1px; }
+.flow-packet {
+  position: absolute; left: -2px; top: 0; width: 5px; height: 5px; border-radius: 999px;
+  background: var(--red); box-shadow: 0 0 8px 1px rgba(230,51,18,.7); opacity: 0;
+}
+.data-flow.is-visible .flow-packet { animation: flow-packet 3.4s cubic-bezier(.45,0,.2,1) .5s infinite; }
+@keyframes flow-packet {
+  0%   { top: 0;    opacity: 0; }
+  6%   { opacity: 1; }
+  94%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* The red edge labels ("↓ TLS tunnel to Basel") nudge their arrow downward. */
+@keyframes edge-nudge { 0%,100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+.edge-arrow { display: inline-block; animation: edge-nudge 1.6s ease-in-out infinite; }
+
 /* Animated underline for nav / inline links: grows from the left on hover
    instead of the default instant underline. */
 .link-underline { position: relative; }
@@ -193,7 +225,10 @@ body {
 .mascot-asteroid { animation-name: mascot-asteroid; animation-timing-function: linear; animation-iteration-count: infinite; }
 @media (prefers-reduced-motion: reduce) {
   .rise, .pulse-dot, .cursor-blink::after, .mascot-dodge, .mascot-flame, .mascot-eye, .mascot-asteroid,
-  .beacon::after, .num-in, .row-in { animation: none !important; }
+  .beacon::after, .num-in, .row-in, .flow-packet, .edge-arrow { animation: none !important; }
+  .flow-step { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .flow-node { transform: none !important; transition: none !important; }
+  .flow-packet { display: none !important; }
   /* Reveal/lift/view-fade collapse to no-ops: content is shown immediately,
      never nudged or transitioned, for anyone who asked the OS to reduce motion. */
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }

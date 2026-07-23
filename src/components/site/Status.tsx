@@ -243,25 +243,26 @@ function ComponentRow({ c }: { c: StatusComponent }) {
 }
 
 export default function Status() {
-  const [offset, setOffset] = useState(0); // 0 = current calendar month
   const [data, setData] = useState<StatusSummary | null>(null);
   const [err, setErr] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
 
-  const win = monthWindow(offset); // for the header label; the effect recomputes its own
+  // History is scoped to the current calendar month only — there's no
+  // meaningful data before this deploy, and the page deliberately doesn't page
+  // into the past.
+  const win = monthWindow(0);
   useEffect(() => {
     let alive = true;
-    const w = monthWindow(offset);
+    const w = monthWindow(0);
     const params = new URLSearchParams({ historyDays: String(w.days) });
-    if (offset > 0) params.set('before', w.before.toISOString());
     const load = () => api<StatusSummary>(`/status?${params.toString()}`)
       .then((d) => { if (alive) { setData(d); setErr(false); } })
       .catch(() => { if (alive) setErr(true); });
     void load();
-    const t = offset === 0 ? setInterval(load, 60000) : undefined; // only the live month auto-refreshes
-    return () => { alive = false; if (t) clearInterval(t); };
-  }, [offset]);
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   const overall = data?.overall.status ?? 'operational';
   const problems = (data?.active ?? []).filter((p) => p.type !== 'announcement');
@@ -327,14 +328,9 @@ export default function Status() {
         {/* System status panel */}
         {data && (
           <section className="mt-6 border hairline">
-            <div className="px-5 py-4 flex items-center gap-4">
+            <div className="px-5 py-4 flex items-center justify-between gap-4">
               <h2 className="font-semibold">System status</h2>
-              <div className="flex items-center gap-2 text-sm text-[--ink-soft]">
-                <button onClick={() => setOffset((o) => o + 1)} aria-label="Earlier month" className="hover:text-[--ink] px-1">‹</button>
-                <span className="tabular-nums min-w-[9ch] text-center">{win.label}</span>
-                <button onClick={() => setOffset((o) => Math.max(0, o - 1))} disabled={offset === 0}
-                  aria-label="Later month" className="px-1 disabled:opacity-30 hover:text-[--ink]">›</button>
-              </div>
+              <span className="text-sm text-[--ink-soft] tabular-nums">{win.label}</span>
             </div>
             <div className="divide-y divide-[--line]">
               {data.components.map((c) => <ComponentRow key={c.key} c={c} />)}

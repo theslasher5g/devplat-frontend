@@ -1,6 +1,43 @@
 import { useState } from 'react';
 import GithubComparisonSection from './GithubComparisonSection';
-import { Eyebrow, type Page } from './Shared';
+import { Eyebrow, type Page, useInView } from './Shared';
+
+const flowSteps: [string, string, string][] = [
+  ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'TLS tunnel to Basel'],
+  ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a token-authenticated TLS tunnel to the control plane.', ''],
+  ['scheduler', 'Checks your plan’s parallelism limit and assigns the run to a free microVM. If everything is busy, the run queues briefly instead of failing.', ''],
+  ['microVM · dockerd', 'A dedicated Firecracker VM with a real Docker daemon inside — isolated from every other customer by a KVM boundary, not by namespaces.', ''],
+  ['postgres · redis · kafka', 'Your containers start from the warm image cache instead of pulling from the internet each run. Testcontainers reaches them through the Docker API over the tunnel.', 'run finishes — VM destroyed'],
+];
+
+/** The vertical data-flow stepper. On scroll-in, each step slides in from the
+ *  left in sequence and a red "packet" glides down the rail on a loop —
+ *  reading as data flowing to Basel and back. Falls back to a plain static
+ *  list under prefers-reduced-motion (handled in CSS). */
+function DataFlow() {
+  const [ref, seen] = useInView<HTMLOListElement>();
+  return (
+    <ol ref={ref} className={`data-flow relative max-w-3xl ${seen ? 'is-visible' : ''}`}>
+      <span className="flow-track" aria-hidden><span className="flow-packet" /></span>
+      {flowSteps.map(([title, desc, edge], i) => (
+        <li key={title} className="flow-step relative pl-12 pb-8 last:pb-0" style={{ transitionDelay: `${i * 110}ms` }}>
+          <span className="flow-node absolute left-0 top-0 w-8 h-8 grid place-items-center border hairline bg-white font-doto text-sm">{i + 1}</span>
+          <span className="absolute left-4 top-8 bottom-0 border-l hairline" aria-hidden />
+          <p className="font-mono2 text-sm text-[--ink] pt-1.5">{title}</p>
+          <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">{desc}</p>
+          {edge && <p className="mt-3 font-mono2 text-[11px] text-[--red]"><span className="edge-arrow">↓</span> {edge}</p>}
+        </li>
+      ))}
+      <li className="flow-step relative pl-12" style={{ transitionDelay: `${flowSteps.length * 110}ms` }}>
+        <span className="flow-node absolute left-0 top-0 w-8 h-8 grid place-items-center border border-[--red] text-[--red] font-doto text-sm">✕</span>
+        <p className="font-mono2 text-sm text-[--red] pt-1.5">destroyed</p>
+        <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">
+          The microVM and its storage are wiped the moment the run ends. Nothing persists, nothing is reused.
+        </p>
+      </li>
+    </ol>
+  );
+}
 
 const snippets: Record<string, string> = {
   'GitHub Actions': `# .github/workflows/ci.yml
@@ -81,30 +118,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
           {/* flow: vertical stepper — every step visible, nothing to scroll */}
           <div className="mt-10 border hairline bg-white p-6 md:p-10">
             <p className="eyebrow mb-8">Data flow of a test run</p>
-            <ol className="max-w-3xl">
-              {[
-                ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'TLS tunnel to Basel'],
-                ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a token-authenticated TLS tunnel to the control plane.', ''],
-                ['scheduler', 'Checks your plan’s parallelism limit and assigns the run to a free microVM. If everything is busy, the run queues briefly instead of failing.', ''],
-                ['microVM · dockerd', 'A dedicated Firecracker VM with a real Docker daemon inside — isolated from every other customer by a KVM boundary, not by namespaces.', ''],
-                ['postgres · redis · kafka', 'Your containers start from the warm image cache instead of pulling from the internet each run. Testcontainers reaches them through the Docker API over the tunnel.', 'run finishes — VM destroyed'],
-              ].map(([title, desc, edge], i) => (
-                <li key={title} className="relative pl-12 pb-8 last:pb-0">
-                  <span className="absolute left-0 top-0 w-8 h-8 grid place-items-center border hairline bg-white font-doto text-sm">{i + 1}</span>
-                  <span className="absolute left-4 top-8 bottom-0 border-l hairline" aria-hidden />
-                  <p className="font-mono2 text-sm text-[--ink] pt-1.5">{title}</p>
-                  <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">{desc}</p>
-                  {edge && <p className="mt-3 font-mono2 text-[11px] text-[--red]">↓ {edge}</p>}
-                </li>
-              ))}
-              <li className="relative pl-12">
-                <span className="absolute left-0 top-0 w-8 h-8 grid place-items-center border border-[--red] text-[--red] font-doto text-sm">✕</span>
-                <p className="font-mono2 text-sm text-[--red] pt-1.5">destroyed</p>
-                <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">
-                  The microVM and its storage are wiped the moment the run ends. Nothing persists, nothing is reused.
-                </p>
-              </li>
-            </ol>
+            <DataFlow />
           </div>
         </div>
       </section>
