@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   API_URL, ApiError, LEVEL_META, api,
   type ApiTokenInfo, type AuditEntry, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
-  type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo,
+  type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo, type ReferralInfo,
   type StatusSummary, type SubscriptionInfo, type TeamInfo, type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -725,6 +725,35 @@ const TIER_CARDS = [
   { tier: 'scale' as const, name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12 },
 ];
 
+/** Refer-a-team card: shareable link + how many referrals are pending vs.
+ *  rewarded with a free month. Lives in the billing view. */
+function ReferralCard() {
+  const [info, setInfo] = useState<ReferralInfo | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { api<ReferralInfo>('/teams/me/referral').then(setInfo).catch(() => {}); }, []);
+  if (!info) return null;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(info.shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* noop */ }
+  };
+  return (
+    <Card className="p-6 accent-top">
+      <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Refer a team · earn a free month</p>
+      <p className="text-sm text-[--dark-muted] mt-2 max-w-[54ch]">
+        Share your link. When a team signs up with it and upgrades to a paid plan,
+        <span className="text-white"> you both get one month free</span> — applied automatically to your next invoice.
+      </p>
+      <div className="mt-4 flex items-stretch gap-2">
+        <p className="flex-1 font-mono2 text-xs bg-black/40 border border-[--dark-line] p-3 select-all break-all">{info.shareUrl}</p>
+        <button onClick={copy} className={`font-mono2 text-[10px] border px-3 shrink-0 ${copied ? 'border-[#57C99A] text-[#57C99A]' : 'border-[--dark-line] text-[--dark-muted] hover:border-white hover:text-white'}`}>{copied ? '✓ Copied' : 'Copy'}</button>
+      </div>
+      <div className="mt-4 flex gap-6 font-mono2 text-xs">
+        <span className="text-[--dark-muted]">Pending <span className="text-white font-doto text-lg ml-1">{info.pending}</span></span>
+        <span className="text-[--dark-muted]">Rewarded <span className="text-[#57C99A] font-doto text-lg ml-1">{info.rewarded}</span></span>
+      </div>
+    </Card>
+  );
+}
+
 function Billing() {
   const [sub, setSub] = useState<SubscriptionInfo | null>(null);
   const [invoices, setInvoices] = useState<InvoiceInfo[] | null>(null);
@@ -784,6 +813,7 @@ function Billing() {
           <button onClick={() => setParams({}, { replace: true })} className="mt-2 font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Dismiss</button>
         </Card>
       )}
+      <ReferralCard />
       <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
         <div className="grid gap-5">
           <Card className="p-6">

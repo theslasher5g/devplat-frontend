@@ -153,6 +153,10 @@ export interface AuditEntry {
   detail: Record<string, unknown>; createdAt: string;
 }
 
+export interface ReferralInfo {
+  code: string; shareUrl: string; pending: number; rewarded: number;
+}
+
 /* ---------- Status page / incidents ---------- */
 
 export type StatusLevel = 'operational' | 'maintenance' | 'degraded' | 'partial_outage' | 'major_outage';

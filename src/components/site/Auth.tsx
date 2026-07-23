@@ -75,6 +75,11 @@ export default function Auth() {
   const location = useLocation();
   const { me, loading, refresh } = useAuth();
 
+  // A ?ref=CODE in the URL (a referral share link) starts registration with
+  // the code attached, so both teams get a free month once this one subscribes.
+  const referralCode = new URLSearchParams(location.search).get('ref') ?? '';
+  useEffect(() => { if (referralCode) setMode('register'); }, [referralCode]);
+
   // Already signed in? Straight to the dashboard.
   useEffect(() => {
     if (!loading && me) navigate('/app', { replace: true });
@@ -94,7 +99,7 @@ export default function Auth() {
         const from = (location.state as { from?: string } | null)?.from;
         navigate(from ?? '/app', { replace: true });
       } else if (mode === 'register') {
-        await api('/auth/register', { body: { email: mail, password: pw, teamName: teamName || undefined } });
+        await api('/auth/register', { body: { email: mail, password: pw, teamName: teamName || undefined, referralCode: referralCode || undefined } });
         setNotice('Account created. Please check your inbox and confirm your email address before signing in.');
         setMode('login');
       } else {
@@ -136,6 +141,12 @@ export default function Auth() {
       </p>
 
       <div className="mt-8 space-y-4">
+        {mode === 'register' && referralCode && (
+          <div className="border hairline bg-white px-4 py-2.5 text-sm flex items-center gap-2">
+            <span className="text-[--red]">●</span>
+            <span className="text-[--ink-soft]">Referred with code <span className="font-mono2 text-[--ink]">{referralCode}</span> — you both get a free month when you upgrade.</span>
+          </div>
+        )}
         {mode === 'register' && (
           <Field label="Organization" type="text" value={teamName} onChange={setTeamName} placeholder="Your team name" />
         )}
