@@ -49,6 +49,8 @@ export interface TeamInfo {
 export interface ApiTokenInfo {
   id: string; label: string; prefix: string; scope: string;
   createdAt: string; lastUsedAt: string | null;
+  // 14 daily run counts (oldest→newest) for the usage sparkline, and their sum.
+  usage?: number[]; runsTotal?: number;
 }
 
 export interface CreatedToken extends ApiTokenInfo { token: string }

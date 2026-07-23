@@ -16,6 +16,18 @@ function CountStat({ value }: { value: number | null }) {
   return <p className="font-doto text-4xl mt-2 num-in">{counted}</p>;
 }
 
+/** Tiny inline bar sparkline for per-token run counts. */
+function Sparkline({ data }: { data: number[] }) {
+  const max = Math.max(1, ...data);
+  return (
+    <span className="inline-flex items-end gap-[1px] h-4 align-middle">
+      {data.map((v, i) => (
+        <span key={i} className="w-[3px] bg-[#8AB8F0]/70" style={{ height: `${v > 0 ? Math.max((v / max) * 100, 15) : 6}%` }} />
+      ))}
+    </span>
+  );
+}
+
 /** Info panel shown across all dashboard views: active incidents, general
  *  announcements, and upcoming maintenance, pulled from the same /status feed
  *  the public page uses. Renders nothing when there's nothing to say. */
@@ -558,10 +570,17 @@ function Tokens() {
           {tokens === null && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
           {tokens?.length === 0 && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">No tokens yet — create one for your CI.</p>}
           {tokens?.map((t) => (
-            <div key={t.id} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_150px_100px_120px_auto] gap-3 items-center px-5 py-3.5 text-sm">
-              <div><p className="font-medium">{t.label}</p><p className="font-mono2 text-[11px] text-[--dark-muted]">{t.prefix}</p></div>
+            <div key={t.id} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_150px_130px_120px_auto] gap-3 items-center px-5 py-3.5 text-sm">
+              <div>
+                <p className="font-medium">{t.label}</p>
+                <p className="font-mono2 text-[11px] text-[--dark-muted]">{t.prefix}</p>
+              </div>
               <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">Scope: {t.scope}</span>
-              <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">{fmtAgo(t.lastUsedAt)}</span>
+              <div className="hidden sm:flex items-center gap-2" title={`${t.runsTotal ?? 0} runs in the last 14 days`}>
+                {t.usage && t.usage.length > 0
+                  ? <><Sparkline data={t.usage} /><span className="font-mono2 text-[10px] text-[--dark-muted]">{t.runsTotal} · 14d</span></>
+                  : <span className="font-mono2 text-[11px] text-[--dark-muted]">{fmtAgo(t.lastUsedAt)}</span>}
+              </div>
               <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">{fmtDate(t.createdAt)}</span>
               <button onClick={() => revoke(t.id)} className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10">Revoke</button>
             </div>
