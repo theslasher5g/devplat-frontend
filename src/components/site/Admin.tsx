@@ -361,7 +361,7 @@ function StatusAdmin() {
 
   return (
     <Card>
-      <CardHead title="Status page" right={<a href="/status" target="_blank" rel="noreferrer" className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">View public page ↗</a>} />
+      <CardHead title="Status page" right={<a href="/status" target="_blank" rel="noreferrer" className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">View public page</a>} />
       <div className="p-5 grid gap-6">
         {/* Components */}
         <div>
