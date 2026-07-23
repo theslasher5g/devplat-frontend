@@ -90,7 +90,28 @@ export function StatusUnsubscribePage() {
     : <ResultShell title="Unsubscribed." body="You won't receive any more devplat status emails. You can resubscribe any time." />;
 }
 
-const HISTORY_DAYS = 90;
+/**
+ * The status page shows history a calendar month at a time, current month by
+ * default (from the 1st to today) — not a rolling 90-day window that reaches
+ * far into the past. `offset` counts whole months back from the current one.
+ * Boundaries are computed in UTC to line up with the backend, which snaps its
+ * window to whole UTC days.
+ */
+function monthWindow(offset: number): { before: Date; days: number; label: string } {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth() - offset;
+  const first = Date.UTC(y, m, 1);
+  const isCurrent = offset === 0;
+  // End day: today for the current month, else the last day of that month
+  // (day 0 of the following month, in UTC).
+  const end = isCurrent
+    ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    : Date.UTC(y, m + 1, 0);
+  const days = Math.round((end - first) / 86400000) + 1;
+  const label = new Date(first).toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return { before: new Date(end), days, label };
+}
 
 // Bars collapse to three buckets: green (operational), amber
 // (maintenance/minor degradation — not real downtime), red (partial/major
@@ -114,7 +135,7 @@ export function StatusIcon({ level }: { level: StatusLevel }) {
 
 function UptimeBars({ history }: { history: DayStatus[] }) {
   return (
-    <div className="flex gap-[2px] items-stretch h-8 w-full" role="img" aria-label="Daily status, last 90 days">
+    <div className="flex gap-[2px] items-stretch h-8 w-full" role="img" aria-label="Daily status for the month">
       {history.map((d) => (
         <div
           key={d.date}
@@ -143,12 +164,6 @@ function fmtDateTime(ts: string | null): string {
 
 function capitalize(s: string): string {
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
-}
-
-function monthRange(w?: { start: string; end: string }): string {
-  if (!w) return '';
-  const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-  return `${fmt(new Date(w.start))} – ${fmt(new Date(new Date(w.end).getTime() - 86400000))}`;
 }
 
 /** One incident/maintenance/announcement with its update thread — used in the
@@ -228,21 +243,23 @@ function ComponentRow({ c }: { c: StatusComponent }) {
 }
 
 export default function Status() {
-  const [offset, setOffset] = useState(0); // 0 = present 90-day window
+  const [offset, setOffset] = useState(0); // 0 = current calendar month
   const [data, setData] = useState<StatusSummary | null>(null);
   const [err, setErr] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
 
+  const win = monthWindow(offset); // for the header label; the effect recomputes its own
   useEffect(() => {
     let alive = true;
-    const params = new URLSearchParams({ historyDays: String(HISTORY_DAYS) });
-    if (offset > 0) params.set('before', new Date(Date.now() - offset * HISTORY_DAYS * 86400000).toISOString());
+    const w = monthWindow(offset);
+    const params = new URLSearchParams({ historyDays: String(w.days) });
+    if (offset > 0) params.set('before', w.before.toISOString());
     const load = () => api<StatusSummary>(`/status?${params.toString()}`)
       .then((d) => { if (alive) { setData(d); setErr(false); } })
       .catch(() => { if (alive) setErr(true); });
     void load();
-    const t = offset === 0 ? setInterval(load, 60000) : undefined; // only the live window auto-refreshes
+    const t = offset === 0 ? setInterval(load, 60000) : undefined; // only the live month auto-refreshes
     return () => { alive = false; if (t) clearInterval(t); };
   }, [offset]);
 
@@ -313,10 +330,10 @@ export default function Status() {
             <div className="px-5 py-4 flex items-center gap-4">
               <h2 className="font-semibold">System status</h2>
               <div className="flex items-center gap-2 text-sm text-[--ink-soft]">
-                <button onClick={() => setOffset((o) => o + 1)} aria-label="Earlier" className="hover:text-[--ink] px-1">‹</button>
-                <span className="tabular-nums">{monthRange(data.window)}</span>
+                <button onClick={() => setOffset((o) => o + 1)} aria-label="Earlier month" className="hover:text-[--ink] px-1">‹</button>
+                <span className="tabular-nums min-w-[9ch] text-center">{win.label}</span>
                 <button onClick={() => setOffset((o) => Math.max(0, o - 1))} disabled={offset === 0}
-                  aria-label="Later" className="px-1 disabled:opacity-30 hover:text-[--ink]">›</button>
+                  aria-label="Later month" className="px-1 disabled:opacity-30 hover:text-[--ink]">›</button>
               </div>
             </div>
             <div className="divide-y divide-[--line]">

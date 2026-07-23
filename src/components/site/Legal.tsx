@@ -1,19 +1,5 @@
 import { Eyebrow } from './Shared';
 
-/**
- * Renders a visibly unfinished placeholder — deliberately loud (not a quiet
- * gray "TODO") so a real legal fact never accidentally ships looking
- * authoritative. Replace every <Placeholder> with the real value before
- * these pages go live.
- */
-function Placeholder({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-block bg-[--red]/10 border border-[--red] text-[--red] px-1.5 font-mono2 text-[13px]" title="Replace before publishing">
-      {children}
-    </span>
-  );
-}
-
 function LegalShell({ eyebrow, title, updated, children }: {
   eyebrow: string; title: string; updated: string; children: React.ReactNode;
 }) {
@@ -37,25 +23,24 @@ function LegalShell({ eyebrow, title, updated, children }: {
 
 export function Imprint() {
   return (
-    <LegalShell eyebrow="Legal notice" title="Imprint" updated="2026-07-17">
+    <LegalShell eyebrow="Legal notice" title="Imprint" updated="2026-07-23">
       <h2>Operator</h2>
       <p>
         This website and service are operated by:<br />
-        <Placeholder>[FULL LEGAL NAME]</Placeholder>, trading as devplat<br />
-        <Placeholder>[STREET AND NUMBER]</Placeholder><br />
-        <Placeholder>[POSTAL CODE, CITY]</Placeholder>, Switzerland
+        Timo Schmidt, trading as devplat<br />
+        Duggingerhof 54<br />
+        4053 Basel, Switzerland
       </p>
       <h2>Contact</h2>
       <p>
-        Email: hello@devplat.ch<br />
-        Phone: <Placeholder>[OPTIONAL — PHONE NUMBER]</Placeholder>
+        Email: admin@devplat.ch
       </p>
       <h2>VAT / UID</h2>
       <p>
-        <Placeholder>[UID/VAT NUMBER, IF REGISTERED — OR "Not currently VAT-registered (small business)"]</Placeholder>
+        Not currently VAT-registered (small business).
       </p>
       <h2>Responsible for content</h2>
-      <p><Placeholder>[FULL LEGAL NAME]</Placeholder> (as above).</p>
+      <p>Timo Schmidt (as above).</p>
       <h2>Dispute resolution</h2>
       <p>
         We are not obligated and generally do not participate in dispute resolution proceedings
@@ -67,9 +52,9 @@ export function Imprint() {
 
 export function Terms() {
   return (
-    <LegalShell eyebrow="Legal" title="Terms of Service" updated="2026-07-17">
+    <LegalShell eyebrow="Legal" title="Terms of Service" updated="2026-07-23">
       <p>
-        These Terms govern use of devplat (the "Service"), operated by <Placeholder>[FULL LEGAL NAME]</Placeholder>{' '}
+        These Terms govern use of devplat (the "Service"), operated by Timo Schmidt{' '}
         ("we", "us"). By creating an account or using the Service you agree to these Terms.
       </p>
       <h2>1. The Service</h2>
@@ -141,7 +126,7 @@ export function Terms() {
       </p>
       <h2>11. Governing law</h2>
       <p>
-        These Terms are governed by Swiss law. Place of jurisdiction is <Placeholder>[CITY]</Placeholder>,
+        These Terms are governed by Swiss law. Place of jurisdiction is Basel,
         Switzerland, to the extent permitted by mandatory consumer-protection law.
       </p>
       <h2>12. Contact</h2>
@@ -152,11 +137,11 @@ export function Terms() {
 
 export function PrivacyPolicy() {
   return (
-    <LegalShell eyebrow="Legal" title="Privacy Policy" updated="2026-07-17">
+    <LegalShell eyebrow="Legal" title="Privacy Policy" updated="2026-07-23">
       <h2>1. Controller</h2>
       <p>
-        <Placeholder>[FULL LEGAL NAME]</Placeholder>, <Placeholder>[STREET, POSTAL CODE, CITY]</Placeholder>,
-        Switzerland — hello@devplat.ch.
+        Timo Schmidt, Duggingerhof 54, 4053 Basel,
+        Switzerland — admin@devplat.ch.
       </p>
       <h2>2. What we process</h2>
       <p>We process the following categories of personal data:</p>
