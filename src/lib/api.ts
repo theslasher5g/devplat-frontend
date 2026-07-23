@@ -93,6 +93,19 @@ export interface UsageTimeseries {
   days: { date: string; starts: number; failures: number }[];
 }
 
+export interface EnvironmentDetail {
+  requestId: string; status: string; vmId: string | null; dockerEndpoint: string | null;
+  hostName: string | null; region: string | null; vcpu: number | null; ramMb: number | null;
+  requestedAt: string; assignedAt: string | null; expiresAt: string | null; ttlMinutes: number;
+  usage: { running: number; limit: number };
+}
+
+export interface ContainerInfo {
+  id: string; name: string; image: string; state: string; status: string;
+  ports: { publicPort: number; privatePort: number }[];
+}
+export interface EnvironmentContainers { reachable: boolean; containers: ContainerInfo[] }
+
 export interface AdminOverview {
   totalTeams: number; newTeams7d: number; activeSubscriptions: number;
   mrrChf: number;

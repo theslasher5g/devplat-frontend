@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   API_URL, ApiError, LEVEL_META, api,
-  type ApiTokenInfo, type AuditEntry, type CreatedToken, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo,
+  type ApiTokenInfo, type AuditEntry, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
+  type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo,
   type StatusSummary, type SubscriptionInfo, type TeamInfo, type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -285,12 +286,101 @@ function UsageChart({ series }: { series: UsageTimeseries }) {
   );
 }
 
+function fmtTtl(expiresAt: string | null): string {
+  if (!expiresAt) return '—';
+  const mins = Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000);
+  if (mins <= 0) return 'expired';
+  if (mins < 60) return `${mins}m left`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
+}
+
+/** Slide-over panel with a live view of one environment: its metadata plus a
+ *  polled container list (real `docker ps` via the backend's WireGuard reach
+ *  to the VM). Published ports are shown as localhost:PORT — the same address
+ *  Testcontainers resolves them to through the CLI. */
+function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<EnvironmentDetail | null>(null);
+  const [data, setData] = useState<EnvironmentContainers | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api<EnvironmentDetail>(`/environments/${requestId}`).then((d) => { if (alive) setDetail(d); }).catch(() => {});
+    const loadContainers = () => api<EnvironmentContainers>(`/environments/${requestId}/containers`)
+      .then((d) => { if (alive) setData(d); }).catch(() => { if (alive) setData({ reachable: false, containers: [] }); });
+    loadContainers();
+    const t = setInterval(loadContainers, 4000);
+    return () => { alive = false; clearInterval(t); };
+  }, [requestId]);
+
+  const meta: [string, string][] = detail ? [
+    ['VM', detail.vmId ?? '—'],
+    ['Host', `${detail.hostName ?? '—'}${detail.region ? ` · ${detail.region}` : ''}`],
+    ['Resources', detail.vcpu ? `${detail.vcpu} vCPU · ${Math.round((detail.ramMb ?? 0) / 1024)} GB` : '—'],
+    ['TTL', fmtTtl(detail.expiresAt)],
+    ['Docker endpoint', detail.dockerEndpoint ?? '—'],
+  ] : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative w-full max-w-md h-full bg-[--dark-card] border-l border-[--dark-line] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky top-0 bg-[--dark-card] border-b border-[--dark-line] px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Environment</p>
+            <p className="font-mono2 text-sm mt-0.5">{detail?.vmId ?? requestId.slice(0, 12)}</p>
+          </div>
+          <button onClick={onClose} className="font-mono2 text-xs text-[--dark-muted] hover:text-white border border-[--dark-line] px-3 py-1.5">Close ✕</button>
+        </div>
+
+        <div className="p-5 grid gap-2">
+          {detail ? meta.map(([k, v]) => (
+            <div key={k} className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted] shrink-0">{k}</span>
+              <span className="font-mono2 text-xs text-right break-all">{v}</span>
+            </div>
+          )) : <Skeleton className="h-24 w-full" />}
+        </div>
+
+        <div className="px-5 pb-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Containers</p>
+            {data && <span className={`font-mono2 text-[10px] ${data.reachable ? 'text-[#57C99A]' : 'text-[#E8B44C]'}`}>{data.reachable ? '● live' : 'unreachable'}</span>}
+          </div>
+          {data === null && <Skeleton className="h-16 w-full" />}
+          {data && data.containers.length === 0 && (
+            <p className="font-mono2 text-xs text-[--dark-muted]">{data.reachable ? 'No containers running right now.' : 'Cannot reach the VM (it may be mid-boot).'}</p>
+          )}
+          <div className="space-y-2">
+            {data?.containers.map((c: ContainerInfo) => (
+              <div key={c.id} className="border border-[--dark-line] p-3">
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full ${c.state === 'running' ? 'bg-[#57C99A]' : 'bg-[--dark-muted]'}`} />
+                  <span className="font-mono2 text-xs font-medium truncate">{c.name || c.id}</span>
+                </div>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1 truncate">{c.image}</p>
+                {c.ports.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {c.ports.map((p) => (
+                      <span key={p.publicPort} className="font-mono2 text-[10px] text-[#8AB8F0] border border-[#8AB8F0]/30 px-1.5 py-0.5" title={`container :${p.privatePort}`}>→ localhost:{p.publicPort}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Overview: real environments from the scheduler ---------- */
 
 function Overview({ limit, planLabel, goView }: { limit: number; planLabel: string; goView: (v: View) => void }) {
   const [envs, setEnvs] = useState<EnvironmentInfo[] | null>(null);
   const [runs, setRuns] = useState<EnvironmentRun[] | null>(null);
   const [usage, setUsage] = useState<UsageTimeseries | null>(null);
+  const [drawer, setDrawer] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -319,6 +409,7 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
 
   return (
     <div className="grid gap-5">
+      {drawer && <EnvironmentDrawer requestId={drawer} onClose={() => setDrawer(null)} />}
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {([
           { k: 'Plan', text: planLabel, s: 'manage under Usage & billing' },
@@ -367,11 +458,13 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
           )}
           {envs?.map((e, i) => (
             <div key={e.requestId} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
-              className="row-in grid grid-cols-[1fr_auto] sm:grid-cols-[1.3fr_1fr_110px_auto_auto] gap-3 items-center px-5 py-3.5 font-mono2 text-xs">
-              <div>
-                <p className="font-sans text-sm font-medium">{e.vmId ?? 'waiting for slot'}</p>
+              className="row-in grid grid-cols-[1fr_auto] sm:grid-cols-[1.3fr_1fr_110px_auto_auto] gap-3 items-center px-5 py-3.5 font-mono2 text-xs hover:bg-white/[0.02]">
+              <button onClick={() => e.status === 'assigned' && setDrawer(e.requestId)}
+                className={`text-left ${e.status === 'assigned' ? 'cursor-pointer' : 'cursor-default'}`}
+                title={e.status === 'assigned' ? 'View containers & details' : undefined}>
+                <p className="font-sans text-sm font-medium">{e.vmId ?? 'waiting for slot'}{e.status === 'assigned' && <span className="text-[#8AB8F0] ml-2">details ↗</span>}</p>
                 <p className="text-[11px] text-[--dark-muted]">{e.requestId}</p>
-              </div>
+              </button>
               <span className="text-[--dark-muted] hidden sm:block break-all">{e.dockerEndpoint ?? '—'}</span>
               <span className="text-[--dark-muted] hidden sm:block">{fmtAgo(e.requestedAt)}</span>
               <Badge s={e.status} />
