@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  api, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam,
-  type PostType, type StatusLevel, type StatusPost,
+  api, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam, type AdminUser,
+  type PlanTier, type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo } from './Shared';
@@ -141,9 +141,13 @@ function DeleteTeamModal({ team, onCancel, onDeleted }: { team: AdminTeam; onCan
         <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--red]">Delete team — irreversible</p>
         <h3 className="mt-2 font-semibold text-lg">Delete "{team.name}"?</h3>
         <p className="mt-2 text-sm text-[--dark-muted]">
-          This permanently removes the team, its members, tokens, and invites. Only offered because the
-          owner never verified their email — this cannot be used on a live team.
+          This permanently removes the team, its members, tokens, and invites.
+          {team.subscriptionStatus && <> Any active Stripe subscription is cancelled first.</>}
+          {' '}This cannot be undone.
         </p>
+        {team.ownerVerified && (
+          <p className="mt-2 font-mono2 text-[11px] text-[#E8B44C]">Heads up: this team's owner is verified — it may be a live customer.</p>
+        )}
         <label className="block mt-5">
           <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Type "delete" to confirm</span>
           <input
@@ -163,6 +167,110 @@ function DeleteTeamModal({ team, onCancel, onDeleted }: { team: AdminTeam; onCan
             className="font-mono2 text-xs px-4 py-2 bg-[--red] text-white disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {busy ? 'Deleting…' : 'Delete team'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PLAN_TIERS: PlanTier[] = ['free', 'solo', 'team', 'scale'];
+
+/** Set or clear a team's manual plan override (entitlements only — no billing
+ *  effect). Empty selection clears the override back to the billing plan. */
+function PlanOverrideModal({ team, onCancel, onSaved }: {
+  team: AdminTeam; onCancel: () => void; onSaved: (id: string, override: PlanTier | null, label: string | null) => void;
+}) {
+  const [choice, setChoice] = useState<PlanTier | ''>(team.planOverride ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (busy) return;
+    setBusy(true); setErr('');
+    try {
+      const res = await api<{ planOverride: PlanTier | null; planOverrideLabel: string | null }>(
+        `/admin/teams/${team.id}`, { method: 'PATCH', body: { planOverride: choice === '' ? null : choice } },
+      );
+      onSaved(team.id, res.planOverride, res.planOverrideLabel);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Save failed.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center px-5" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--dark-line] max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Manual plan override</p>
+        <h3 className="mt-2 font-semibold text-lg">{team.name}</h3>
+        <p className="mt-2 text-sm text-[--dark-muted]">
+          Grants a tier's entitlements (parallelism + per-env resources) for free.
+          This does <span className="text-white">not</span> touch Stripe, the subscription, or MRR —
+          billing stays on <span className="font-mono2 text-white">{team.planLabel}</span>.
+        </p>
+        <label className="block mt-5">
+          <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Override tier</span>
+          <select value={choice} onChange={(e) => setChoice(e.target.value as PlanTier | '')}
+            className="mt-1.5 w-full bg-[--dark] border border-[--dark-line] px-3 py-2 text-sm focus:outline-none focus:border-white">
+            <option value="">No override (use billing plan)</option>
+            {PLAN_TIERS.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+        {err && <p className="mt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+          <button onClick={save} disabled={busy}
+            className="font-mono2 text-xs px-4 py-2 border border-white hover:bg-white hover:text-[--dark] disabled:opacity-30">
+            {busy ? 'Saving…' : 'Save override'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Delete a user account. Backend refuses platform admins and self. */
+function DeleteUserModal({ user, onCancel, onDeleted }: { user: AdminUser; onCancel: () => void; onDeleted: (id: string) => void }) {
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const ready = confirmText.trim().toLowerCase() === 'delete';
+  const soleTeams = user.teams.filter((t) => t.role === 'owner');
+
+  async function handleDelete() {
+    if (!ready || busy) return;
+    setBusy(true); setErr('');
+    try {
+      await api(`/admin/users/${user.id}`, { method: 'DELETE' });
+      onDeleted(user.id);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Delete failed.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center px-5" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--red]/50 max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--red]">Delete user — irreversible</p>
+        <h3 className="mt-2 font-semibold text-lg break-all">{user.email}</h3>
+        <p className="mt-2 text-sm text-[--dark-muted]">
+          Permanently removes this user and their team memberships.
+          {soleTeams.length > 0 && <> Any team where they're the only member is deleted too (with its Stripe subscription cancelled).</>}
+          {' '}This cannot be undone.
+        </p>
+        <label className="block mt-5">
+          <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Type "delete" to confirm</span>
+          <input autoFocus value={confirmText} onChange={(e) => setConfirmText(e.target.value)}
+            className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 focus:outline-none focus:border-[--red]" placeholder="delete" />
+        </label>
+        {err && <p className="mt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+          <button onClick={handleDelete} disabled={!ready || busy}
+            className="font-mono2 text-xs px-4 py-2 bg-[--red] text-white disabled:opacity-30 disabled:cursor-not-allowed">
+            {busy ? 'Deleting…' : 'Delete user'}
           </button>
         </div>
       </div>
@@ -318,8 +426,12 @@ export default function Admin() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [hosts, setHosts] = useState<AdminHost[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [err, setErr] = useState('');
+  const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminTeam | null>(null);
+  const [overrideTarget, setOverrideTarget] = useState<AdminTeam | null>(null);
+  const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
   const [editHost, setEditHost] = useState<AdminHost | null>(null);
 
   useEffect(() => {
@@ -327,12 +439,21 @@ export default function Admin() {
       api<AdminOverview>('/admin/overview'),
       api<{ hosts: AdminHost[] }>('/admin/hosts'),
       api<{ teams: AdminTeam[] }>('/admin/subscribers'),
+      api<{ users: AdminUser[] }>('/admin/users'),
     ])
-      .then(([o, h, t]) => { setOverview(o); setHosts(h.hosts); setTeams(t.teams); })
+      .then(([o, h, t, u]) => { setOverview(o); setHosts(h.hosts); setTeams(t.teams); setUsers(u.users); })
       .catch(() => setErr('Could not load admin data — platform-admin role required.'));
   }, []);
 
   const errorRate = overview?.vmStartErrorRate7d;
+
+  // Instant client-side search across both lists: teams match on name or owner
+  // email; users match on email or any of their team names.
+  const q = search.trim().toLowerCase();
+  const shownTeams = q === '' ? teams : teams.filter((t) =>
+    t.name.toLowerCase().includes(q) || (t.ownerEmail ?? '').toLowerCase().includes(q));
+  const shownUsers = q === '' ? users : users.filter((u) =>
+    u.email.toLowerCase().includes(q) || u.teams.some((tm) => tm.teamName.toLowerCase().includes(q)));
 
   return (
     <div className="min-h-screen bg-[--dark] text-[--dark-text]">
@@ -399,25 +520,39 @@ export default function Admin() {
           </div>
         </Card>
 
+        {/* search across teams + users */}
+        <div className="relative">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search teams or users by name / email…"
+            className="w-full bg-[--dark-card] border border-[--dark-line] pl-9 pr-4 py-2.5 text-sm outline-none focus:border-white"
+          />
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[--dark-muted] text-sm" aria-hidden>⌕</span>
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 font-mono2 text-[10px] text-[--dark-muted] hover:text-white">clear ✕</button>
+          )}
+        </div>
+
         {/* subscribers */}
         <Card>
-          <CardHead title={`Teams & subscriptions (${teams.length})`} />
+          <CardHead title={`Teams & subscriptions (${shownTeams.length}${q ? ` of ${teams.length}` : ''})`} />
           <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[720px]">
+            <table className="w-full text-left min-w-[820px]">
               <thead>
                 <tr className="border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
-                  <th className="px-5 py-3 font-medium">Team</th>
-                  <th className="px-5 py-3 font-medium">Plan</th>
+                  <th className="px-5 py-3 font-medium">Team · owner</th>
+                  <th className="px-5 py-3 font-medium">Billing plan</th>
+                  <th className="px-5 py-3 font-medium">Override</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">MRR</th>
                   <th className="px-5 py-3 font-medium">Members</th>
-                  <th className="px-5 py-3 font-medium">VM starts · 30d</th>
                   <th className="px-5 py-3 font-medium">Renews</th>
                   <th className="px-5 py-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[--dark-line]">
-                {teams.map((t) => (
+                {shownTeams.map((t) => (
                   <tr key={t.id} className="text-sm">
                     <td className="px-5 py-3 font-medium">
                       <span className="flex items-center gap-2">
@@ -426,28 +561,81 @@ export default function Admin() {
                           <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-1.5 py-0.5" title="Owner has not confirmed their email — this team may never become active">Unverified</span>
                         )}
                       </span>
-                      <p className="font-mono2 text-[10px] text-[--dark-muted] font-normal">since {fmtDate(t.createdAt)}</p>
+                      <p className="font-mono2 text-[10px] text-[--dark-muted] font-normal break-all">{t.ownerEmail ?? '—'} · since {fmtDate(t.createdAt)}</p>
                     </td>
                     <td className="px-5 py-3">
                       <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${t.planTier === 'free' ? 'border-[--dark-line] text-[--dark-muted]' : 'border-[#57C99A]/40 text-[#57C99A]'}`}>{t.planLabel}</span>
                     </td>
+                    <td className="px-5 py-3">
+                      {t.planOverride
+                        ? <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#8AB8F0]/50 text-[#8AB8F0] px-2 py-0.5" title="Manual entitlement grant — no billing effect">{t.planOverrideLabel} ✦</span>
+                        : <span className="font-mono2 text-[10px] text-[--dark-muted]">—</span>}
+                    </td>
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{t.subscriptionStatus ?? '—'}</td>
                     <td className="px-5 py-3 font-mono2 text-xs">{t.mrrChf > 0 ? `CHF ${t.mrrChf}` : '—'}</td>
                     <td className="px-5 py-3 font-mono2 text-xs">{t.members}</td>
-                    <td className="px-5 py-3 font-mono2 text-xs">{t.vmStarts30d}</td>
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{fmtDate(t.currentPeriodEnd)}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => setOverrideTarget(t)}
+                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">Plan</button>
+                        <button onClick={() => setDeleteTarget(t)}
+                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--red]/80 hover:text-[--red] border border-transparent hover:border-[--red]/40 px-2 py-1">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {shownTeams.length === 0 && (
+                  <tr><td colSpan={8} className="px-5 py-6 font-mono2 text-xs text-[--dark-muted]">No teams match "{search}".</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* users */}
+        <Card>
+          <CardHead title={`Users (${shownUsers.length}${q ? ` of ${users.length}` : ''})`} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[720px]">
+              <thead>
+                <tr className="border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                  <th className="px-5 py-3 font-medium">Email</th>
+                  <th className="px-5 py-3 font-medium">Verified</th>
+                  <th className="px-5 py-3 font-medium">Teams</th>
+                  <th className="px-5 py-3 font-medium">Joined</th>
+                  <th className="px-5 py-3 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[--dark-line]">
+                {shownUsers.map((u) => (
+                  <tr key={u.id} className="text-sm">
+                    <td className="px-5 py-3">
+                      <span className="flex items-center gap-2 flex-wrap">
+                        <span className="break-all">{u.email}</span>
+                        {u.isPlatformAdmin && <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[--red] text-[--red] px-1.5 py-0.5">Admin</span>}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {u.verified
+                        ? <span className="font-mono2 text-[10px] text-[#57C99A]">✓ yes</span>
+                        : <span className="font-mono2 text-[10px] text-[#E8B44C]">pending</span>}
+                    </td>
+                    <td className="px-5 py-3 font-mono2 text-[11px] text-[--dark-muted]">
+                      {u.teams.length === 0 ? '—' : u.teams.map((tm) => `${tm.teamName} (${tm.role})`).join(', ')}
+                    </td>
+                    <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{fmtDate(u.createdAt)}</td>
                     <td className="px-5 py-3 text-right">
-                      {!t.ownerVerified && (
-                        <button
-                          onClick={() => setDeleteTarget(t)}
-                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--red]/80 hover:text-[--red] border border-transparent hover:border-[--red]/40 px-2 py-1"
-                        >
-                          Delete
-                        </button>
+                      {!u.isPlatformAdmin && me?.user.id !== u.id && (
+                        <button onClick={() => setDeleteUser(u)}
+                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--red]/80 hover:text-[--red] border border-transparent hover:border-[--red]/40 px-2 py-1">Delete</button>
                       )}
                     </td>
                   </tr>
                 ))}
+                {shownUsers.length === 0 && (
+                  <tr><td colSpan={5} className="px-5 py-6 font-mono2 text-xs text-[--dark-muted]">No users match "{search}".</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -475,6 +663,32 @@ export default function Admin() {
           team={deleteTarget}
           onCancel={() => setDeleteTarget(null)}
           onDeleted={(id) => { setTeams((prev) => prev.filter((t) => t.id !== id)); setDeleteTarget(null); }}
+        />
+      )}
+
+      {overrideTarget && (
+        <PlanOverrideModal
+          team={overrideTarget}
+          onCancel={() => setOverrideTarget(null)}
+          onSaved={(id, override, label) => {
+            setTeams((prev) => prev.map((t) => (t.id === id ? { ...t, planOverride: override, planOverrideLabel: label } : t)));
+            setOverrideTarget(null);
+          }}
+        />
+      )}
+
+      {deleteUser && (
+        <DeleteUserModal
+          user={deleteUser}
+          onCancel={() => setDeleteUser(null)}
+          onDeleted={(id) => {
+            // A deleted user may have taken sole-member teams with them; drop
+            // any team whose only listed owner was this user, and refetch teams
+            // to stay authoritative.
+            setUsers((prev) => prev.filter((u) => u.id !== id));
+            api<{ teams: AdminTeam[] }>('/admin/subscribers').then((d) => setTeams(d.teams)).catch(() => {});
+            setDeleteUser(null);
+          }}
         />
       )}
 

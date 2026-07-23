@@ -87,10 +87,21 @@ export interface AdminHost {
   ramMb: { total: number; used: number };
 }
 
+export type PlanTier = 'free' | 'solo' | 'team' | 'scale';
+
 export interface AdminTeam {
-  id: string; name: string; planTier: string; planLabel: string; mrrChf: number;
+  id: string; name: string; planTier: PlanTier; planLabel: string;
+  // Manual entitlement override (comp/grant), independent of billing. null = none.
+  planOverride: PlanTier | null; planOverrideLabel: string | null;
+  mrrChf: number;
   subscriptionStatus: string | null; currentPeriodEnd: string | null;
+  ownerEmail: string | null;
   members: number; vmStarts30d: number; createdAt: string; ownerVerified: boolean;
+}
+
+export interface AdminUser {
+  id: string; email: string; verified: boolean; isPlatformAdmin: boolean; createdAt: string;
+  teams: { teamId: string; teamName: string; role: string }[];
 }
 
 /* ---------- Status page / incidents ---------- */
