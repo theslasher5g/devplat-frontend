@@ -55,6 +55,98 @@ function StatusBanner() {
   );
 }
 
+interface Notification { id: string; kind: 'incident' | 'maintenance' | 'trial'; title: string; body: string; href?: string; color: string }
+
+/** Bell in the header aggregating what a user should notice without leaving
+ *  the dashboard: active incidents, upcoming maintenance, and a trial that's
+ *  about to lapse. Derived client-side from the same /status feed + the team's
+ *  trial clock — no new endpoint. Dismissed ids persist in localStorage so a
+ *  seen item doesn't keep re-badging. */
+function NotificationBell({ trialDaysLeft, onTrialClick }: { trialDaysLeft: number | null; onTrialClick: () => void }) {
+  const [status, setStatus] = useState<StatusSummary | null>(null);
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('devplat.notif.dismissed') ?? '[]')); } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => api<StatusSummary>('/status').then((d) => { if (alive) setStatus(d); }).catch(() => {});
+    void load();
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  const notifications: Notification[] = [];
+  for (const p of status?.active ?? []) {
+    if (p.type === 'announcement') continue;
+    notifications.push({ id: `post:${p.id}`, kind: p.type === 'maintenance' ? 'maintenance' : 'incident', title: p.title,
+      body: (p.updates[p.updates.length - 1]?.body ?? p.body), href: '/status',
+      color: p.type === 'maintenance' ? LEVEL_META.maintenance.color : LEVEL_META.degraded.color });
+  }
+  for (const p of status?.upcoming ?? []) {
+    notifications.push({ id: `post:${p.id}`, kind: 'maintenance', title: p.title, body: p.body || 'Scheduled maintenance', href: '/status', color: LEVEL_META.maintenance.color });
+  }
+  if (trialDaysLeft !== null && trialDaysLeft <= 5) {
+    notifications.push({
+      id: `trial:${trialDaysLeft > 0 ? trialDaysLeft : 'ended'}`, kind: 'trial',
+      title: trialDaysLeft > 0 ? `Trial ends in ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'}` : 'Your trial has ended',
+      body: trialDaysLeft > 0 ? 'Upgrade before it lapses to keep running environments.' : 'Upgrade to run environments again.',
+      color: trialDaysLeft <= 3 ? LEVEL_META.major_outage.color : LEVEL_META.maintenance.color,
+    });
+  }
+
+  const unseen = notifications.filter((n) => !dismissed.has(n.id));
+  const dismiss = (id: string) => {
+    setDismissed((prev) => {
+      const next = new Set(prev); next.add(id);
+      try { localStorage.setItem('devplat.notif.dismissed', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="relative w-8 h-8 grid place-items-center border border-[--dark-line] hover:border-white text-sm" aria-label="Notifications" title="Notifications">
+        ◔
+        {unseen.length > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 grid place-items-center bg-[--red] text-white font-mono2 text-[9px] rounded-full">{unseen.length}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[--dark-card] border border-[--dark-line] z-40 shadow-[6px_6px_0_0_rgba(0,0,0,0.5)]">
+            <div className="px-4 py-2.5 border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Notifications</div>
+            {notifications.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-[--dark-muted] text-center">You're all caught up. ✓</p>
+            ) : (
+              <div className="divide-y divide-[--dark-line] max-h-[60vh] overflow-y-auto">
+                {notifications.map((n) => {
+                  const seen = dismissed.has(n.id);
+                  const inner = (
+                    <div className={`px-4 py-3 ${seen ? 'opacity-45' : ''}`} style={{ borderLeft: `2px solid ${n.color}` }}>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium">{n.title}</p>
+                        {!seen && <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); dismiss(n.id); }} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white shrink-0" title="Dismiss">✕</button>}
+                      </div>
+                      <p className="mt-1 text-xs text-[--dark-muted]">{n.body}</p>
+                    </div>
+                  );
+                  if (n.kind === 'trial') {
+                    return <button key={n.id} onClick={() => { setOpen(false); onTrialClick(); }} className="block w-full text-left hover:bg-white/[0.03]">{inner}</button>;
+                  }
+                  return <a key={n.id} href={n.href} className="block hover:bg-white/[0.03]">{inner}</a>;
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Pings the real /health endpoint instead of showing a hardcoded "operational". */
 function useApiHealth(): boolean | null {
   const [ok, setOk] = useState<boolean | null>(null);
@@ -978,6 +1070,7 @@ export default function Dashboard() {
               </button>
             )}
             <span className="hidden sm:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted]">Plan: {planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
+            <NotificationBell trialDaysLeft={trialDaysLeft} onTrialClick={() => setView('billing')} />
             <button onClick={signOut} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Sign out</button>
             <span className="font-doto w-8 h-8 grid place-items-center border border-[--dark-line] text-xs" title={me?.user.email}>{initials}</span>
           </div>
