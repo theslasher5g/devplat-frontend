@@ -14,15 +14,87 @@ function FooterStatus() {
     return () => { alive = false; };
   }, []);
   const meta = level ? LEVEL_META[level] : null;
+  const color = meta?.color ?? 'var(--ink-soft)';
   return (
-    <Link to="/status" className="mt-4 eyebrow inline-flex items-center gap-1.5 hover:opacity-80">
+    <Link to="/status" className="mt-4 eyebrow inline-flex items-center gap-2 hover:opacity-80">
+      {level && (
+        <span className="beacon inline-block w-1.5 h-1.5 rounded-full" style={{ color, background: color }} aria-hidden />
+      )}
       CH-BSL-1 ·{' '}
-      <span style={{ color: meta?.color ?? 'var(--ink-soft)' }}>{meta?.label ?? 'Status'}</span>
+      <span style={{ color }}>{meta?.label ?? 'Status'}</span>
     </Link>
   );
 }
 
 export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'docs' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * useCountUp animates a number from 0 to `target` once, the first time
+ * `start` is true (so callers can defer it until the element scrolls into
+ * view). Returns the current integer value. Honors prefers-reduced-motion by
+ * snapping straight to the target. Non-finite targets are returned as-is by
+ * the caller — this only runs for real numbers.
+ */
+export function useCountUp(target: number, start = true, durationMs = 900): number {
+  const [val, setVal] = useState(0);
+  const done = useRef(false);
+  useEffect(() => {
+    if (!start || done.current) return;
+    done.current = true;
+    if (prefersReducedMotion() || !Number.isFinite(target)) { setVal(target); return; }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / durationMs);
+      // easeOutCubic — fast start, gentle settle, matching the site's motion.
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(target * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else setVal(target);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [start, target, durationMs]);
+  return Math.round(val);
+}
+
+/**
+ * ScrollProgress renders the thin brand-red rail under the nav, its width
+ * tracking how far the page is scrolled. Passive scroll listener, updates a
+ * ref'd element's style directly (no per-frame React re-render). Renders
+ * nothing meaningful for reduced-motion users (the rail just stays at 0).
+ */
+export function ScrollProgress() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const el = ref.current;
+    if (!el) return;
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - doc.clientHeight;
+      el.style.width = max > 0 ? `${Math.min(100, (doc.scrollTop / max) * 100)}%` : '0%';
+    };
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+  return <div ref={ref} className="scroll-rail" aria-hidden />;
+}
 
 /**
  * Reveal wraps content that should fade/slide in the first time it scrolls
@@ -190,7 +262,7 @@ export function TerminalDemo({ compact = false }: { compact?: boolean }) {
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[--dark-line]">
         <span className="font-mono2 text-[11px] text-[--dark-muted]">mvn verify</span>
         <span className="font-mono2 text-[11px] text-[--dark-muted] flex items-center gap-2">
-          <span className="text-[--green] pulse-dot">●</span> CH-BSL-1 · RTT 8 ms
+          <span className="beacon inline-block w-1.5 h-1.5 rounded-full text-[--green] bg-[--green]" aria-hidden /> CH-BSL-1 · RTT 8 ms
         </span>
       </div>
       <div className={`px-4 py-3 font-mono2 text-[11.5px] leading-relaxed ${compact ? 'h-56' : 'h-72'} overflow-hidden`}>
@@ -209,11 +281,34 @@ export function TerminalDemo({ compact = false }: { compact?: boolean }) {
   );
 }
 
+/** useInView flips to true the first time the ref'd element enters the
+ *  viewport, then disconnects. For one-shot entrance effects (count-ups). */
+export function useInView<T extends HTMLElement>(): [React.RefObject<T | null>, boolean] {
+  const ref = useRef<T | null>(null);
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || seen) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) { setSeen(true); obs.disconnect(); }
+    }, { threshold: 0.4 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [seen]);
+  return [ref, seen];
+}
+
 export function Stat({ value, label, unit }: { value: string; label: string; unit?: string }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  // Animate only clean numeric values (e.g. "100", "0"); leave decorated ones
+  // like "~2" exactly as authored.
+  const numeric = /^\d+$/.test(value) ? Number(value) : null;
+  const counted = useCountUp(numeric ?? 0, inView && numeric !== null);
+  const shown = numeric !== null ? String(counted) : value;
   return (
-    <div>
+    <div ref={ref}>
       <p className="font-doto text-5xl md:text-6xl leading-none">
-        {value}<span className="text-2xl align-top text-[--red]">{unit}</span>
+        {shown}<span className="text-2xl align-top text-[--red]">{unit}</span>
       </p>
       <p className="mt-2 text-sm text-[--ink-soft]">{label}</p>
     </div>

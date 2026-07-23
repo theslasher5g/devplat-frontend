@@ -60,7 +60,7 @@ export default function Home({ go }: { go: (p: Page) => void }) {
             <h2 className="text-3xl md:text-4xl font-semibold tracking-tight max-w-[24ch]">Three decisions that make everything else simple.</h2>
           </Reveal>
           <div className="mt-12 grid gap-px bg-[--line] border hairline md:grid-cols-3 md:grid-rows-2">
-            <Reveal className="bg-white p-8 md:col-span-2 lift">
+            <Reveal className="bg-white p-8 md:col-span-2 lift accent-top">
               <p className="font-doto text-4xl text-[--red]">01</p>
               <h3 className="mt-3 text-xl font-semibold">Zero code changes</h3>
               <p className="mt-2 text-sm text-[--ink-soft] max-w-[52ch]">
@@ -75,7 +75,7 @@ $ mvn verify
 $ devplat connect --exec "mvn verify"
 #                       ^ unchanged.`}</pre>
             </Reveal>
-            <Reveal delay={80} className="bg-white p-8 lift">
+            <Reveal delay={80} className="bg-white p-8 lift accent-top">
               <p className="font-doto text-4xl text-[--red]">02</p>
               <h3 className="mt-3 text-xl font-semibold">Ready in seconds</h3>
               <p className="mt-2 text-sm text-[--ink-soft]">
@@ -87,7 +87,7 @@ $ devplat connect --exec "mvn verify"
                 <span className="align-middle">Sub-second starts from pre-warmed Firecracker snapshots.</span>
               </p>
             </Reveal>
-            <Reveal delay={160} className="bg-white p-8 lift">
+            <Reveal delay={160} className="bg-white p-8 lift accent-top">
               <p className="font-doto text-4xl text-[--red]">03</p>
               <h3 className="mt-3 text-xl font-semibold">Radically isolated</h3>
               <p className="mt-2 text-sm text-[--ink-soft]">

@@ -5,7 +5,15 @@ import {
   type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type InvoiceInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Logo } from './Shared';
+import { Logo, useCountUp } from './Shared';
+
+/** A dashboard metric that counts up to its value once loaded. `value` is the
+ *  resolved number, or null while still loading (renders a skeleton). */
+function CountStat({ value }: { value: number | null }) {
+  const counted = useCountUp(value ?? 0, value !== null);
+  if (value === null) return <Skeleton className="h-9 w-16 mt-2.5 mb-1.5" />;
+  return <p className="font-doto text-4xl mt-2 num-in">{counted}</p>;
+}
 
 /** Info panel shown across all dashboard views: active incidents, general
  *  announcements, and upcoming maintenance, pulled from the same /status feed
@@ -155,18 +163,18 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
   return (
     <div className="grid gap-5">
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ['Plan', planLabel, 'manage under Usage & billing'],
-          ['Parallelism limit', String(limit), `environment${limit === 1 ? '' : 's'} at once`],
-          ['Active now', envs ? String(active) : '—', 'assigned microVMs'],
-          ['Queued', envs ? String(queued) : '—', 'waiting for a free slot'],
-        ].map(([k, v, s]) => (
-          <Card key={k} className="p-5">
-            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{k}</p>
-            {v === '—' && envs === null && !err
-              ? <Skeleton className="h-9 w-16 mt-2.5 mb-1.5" />
-              : <p className="font-doto text-4xl mt-2">{v}</p>}
-            <p className="text-xs text-[--dark-muted] mt-1">{s}</p>
+        {([
+          { k: 'Plan', text: planLabel, s: 'manage under Usage & billing' },
+          { k: 'Parallelism limit', num: limit, s: `environment${limit === 1 ? '' : 's'} at once` },
+          { k: 'Active now', num: envs ? active : null, s: 'assigned microVMs' },
+          { k: 'Queued', num: envs ? queued : null, s: 'waiting for a free slot' },
+        ] as const).map((c) => (
+          <Card key={c.k} className="p-5 accent-top lift">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{c.k}</p>
+            {'text' in c
+              ? <p className="font-doto text-4xl mt-2">{c.text}</p>
+              : <CountStat value={c.num ?? (err ? 0 : null)} />}
+            <p className="text-xs text-[--dark-muted] mt-1">{c.s}</p>
           </Card>
         ))}
       </div>
@@ -200,8 +208,9 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
               </ol>
             </div>
           )}
-          {envs?.map((e) => (
-            <div key={e.requestId} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.3fr_1fr_110px_auto_auto] gap-3 items-center px-5 py-3.5 font-mono2 text-xs">
+          {envs?.map((e, i) => (
+            <div key={e.requestId} style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
+              className="row-in grid grid-cols-[1fr_auto] sm:grid-cols-[1.3fr_1fr_110px_auto_auto] gap-3 items-center px-5 py-3.5 font-mono2 text-xs">
               <div>
                 <p className="font-sans text-sm font-medium">{e.vmId ?? 'waiting for slot'}</p>
                 <p className="text-[11px] text-[--dark-muted]">{e.requestId}</p>
@@ -784,8 +793,10 @@ export default function Dashboard() {
           )}
         </nav>
         <div className="p-5 border-t border-[--dark-line] font-mono2 text-[10px] text-[--dark-muted] space-y-1">
-          <p>
-            <span className={apiOk === false ? 'text-[--red]' : apiOk === null ? 'text-[--dark-muted]' : 'text-[#57C99A] pulse-dot'}>●</span>{' '}
+          <p className="flex items-center gap-1.5">
+            {apiOk === true
+              ? <span className="beacon inline-block w-1.5 h-1.5 rounded-full text-[#57C99A] bg-[#57C99A]" aria-hidden />
+              : <span className={apiOk === false ? 'text-[--red]' : 'text-[--dark-muted]'}>●</span>}
             {apiOk === false ? 'API unreachable' : apiOk === null ? 'Checking API…' : 'API reachable'}
           </p>
           <p>Control plane · {API_URL.replace(/^https?:\/\//, '')}</p>

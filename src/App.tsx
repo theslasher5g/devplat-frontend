@@ -11,7 +11,7 @@ import Home from '@/components/site/Home';
 import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
 import { Preise, Compliance } from '@/components/site/PreiseCompliance';
 import Security from '@/components/site/Security';
-import { Footer, Nav, type Page } from '@/components/site/Shared';
+import { Footer, Nav, type Page, ScrollProgress } from '@/components/site/Shared';
 import Status, { StatusConfirmPage, StatusUnsubscribePage } from '@/components/site/Status';
 import Technik from '@/components/site/Technik';
 import { AuthProvider, RequireAuth } from '@/lib/auth';
@@ -86,6 +86,7 @@ function MarketingLayout({ page, children }: { page: Page; children: React.React
   useSectionReveals(page !== 'home' && page !== 'docs');
   return (
     <div>
+      <ScrollProgress />
       <Nav page={page} go={go} />
       {children}
       <Footer go={go} />

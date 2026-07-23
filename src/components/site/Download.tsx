@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Eyebrow, type Page } from './Shared';
 
-const CLI_VERSION = 'v0.4.2';
+const CLI_VERSION = 'v1.1.0';
 
 // Linux and Windows only for now — both amd64. macOS and arm64 builds are a
 // later addition (same release pipeline, just more targets), not listed
@@ -39,7 +39,7 @@ export default function Download({ go }: { go: (p: Page) => void }) {
           </h1>
           <p className="mt-6 text-lg text-[--ink-soft] max-w-[56ch]">
             The devplat CLI is a single static Go binary: no runtime, no Docker Desktop, no
-            configuration files. It authenticates, opens the mTLS tunnel, and sets{' '}
+            configuration files. It authenticates, opens the encrypted tunnel, and sets{' '}
             <span className="font-mono2 text-[15px]">DOCKER_HOST</span> — then gets out of the way.
           </p>
           <p className="mt-6 font-mono2 text-xs text-[--ink-soft]">
@@ -126,7 +126,7 @@ devplat-${CLI_VERSION}-linux-amd64.tar.gz: OK`}</pre>
               ['Works with your stack', 'Anything that speaks the Docker API works: Testcontainers in Java, Go, .NET, Node, Python and Rust, the Docker SDKs, and docker compose.'],
               ['Tokens, not passwords', 'CI authenticates with scoped API tokens (ci:run) you create in the dashboard and can revoke at any time. The token never grants dashboard access.'],
             ].map(([t, d]) => (
-              <div key={t} className="border hairline bg-white p-6">
+              <div key={t} className="border hairline bg-white p-6 lift accent-top">
                 <h3 className="font-semibold">{t}</h3>
                 <p className="mt-2 text-sm text-[--ink-soft]">{d}</p>
               </div>

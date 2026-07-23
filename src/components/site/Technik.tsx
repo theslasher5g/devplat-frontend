@@ -72,7 +72,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
         <div className="mx-auto max-w-6xl px-5 py-16">
           <div className="grid gap-6 lg:grid-cols-3">
             <Layer n="1" sub="at your side" title="Client — a static Go binary"
-              items={['Authenticates with an API token', 'Builds an mTLS tunnel to the control plane', 'Exposes a local Docker socket', 'Sets DOCKER_HOST — that\'s it']} />
+              items={['Authenticates with an API token', 'Builds a token-authenticated TLS tunnel to the control plane', 'Exposes a local Docker socket', 'Sets DOCKER_HOST — that\'s it']} />
             <Layer n="2" sub="orchestration" title="Control plane — auth, scheduling, metering"
               items={['Accounts, teams, tokens, quotas', 'Scheduler assigns the tunnel to a microVM', 'Enforces parallelism limits per plan', 'Event-based metering for the dashboard']} />
             <Layer n="3" sub="Basel" title="Data plane — Firecracker microVMs" dark
@@ -83,8 +83,8 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
             <p className="eyebrow mb-8">Data flow of a test run</p>
             <ol className="max-w-3xl">
               {[
-                ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'mTLS tunnel to Basel'],
-                ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a mutually authenticated TLS tunnel to the control plane.', ''],
+                ['your test code', 'mvn verify, gradle test, pytest — Testcontainers starts exactly as before. The Docker API calls leave through a local socket the CLI provides.', 'TLS tunnel to Basel'],
+                ['devplat CLI', 'Authenticates with your API token and forwards the Docker API through a token-authenticated TLS tunnel to the control plane.', ''],
                 ['scheduler', 'Checks your plan’s parallelism limit and assigns the run to a free microVM. If everything is busy, the run queues briefly instead of failing.', ''],
                 ['microVM · dockerd', 'A dedicated Firecracker VM with a real Docker daemon inside — isolated from every other customer by a KVM boundary, not by namespaces.', ''],
                 ['postgres · redis · kafka', 'Your containers start from the warm image cache instead of pulling from the internet each run. Testcontainers reaches them through the Docker API over the tunnel.', 'run finishes — VM destroyed'],

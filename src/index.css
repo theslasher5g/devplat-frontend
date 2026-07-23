@@ -55,6 +55,34 @@ body {
 .cursor-blink::after { content:'▌'; animation: blink 1s step-end infinite; color: var(--green); }
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
 .pulse-dot { animation: pulse-dot 1.6s ease infinite; }
+
+/* Live "beacon" — a status dot that also emits a soft, expanding ring, for
+   the genuinely-live signals (footer status, dashboard API health, terminal
+   header). Reads as "this is a real-time value" more clearly than opacity
+   alone. Sized in em so it tracks the dot it wraps. */
+.beacon { position: relative; }
+.beacon::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 1em; height: 1em; margin: -0.5em 0 0 -0.5em; border-radius: 999px;
+  background: currentColor; opacity: .5;
+  animation: beacon-ring 1.8s cubic-bezier(.2,.7,.3,1) infinite;
+}
+@keyframes beacon-ring {
+  0%   { transform: scale(1); opacity: .45; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Sheen sweep for the primary button: a single diagonal highlight that
+   crosses on hover. Purely additive over the existing ink→red hover, so the
+   brand behaviour is unchanged — it just gains a little life on interaction. */
+.btn-ink { position: relative; overflow: hidden; }
+.btn-ink::before {
+  content: ''; position: absolute; top: 0; left: -120%; width: 60%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.28), transparent);
+  transform: skewX(-18deg); transition: left .55s cubic-bezier(.2,.7,.3,1);
+}
+.btn-ink:hover::before { left: 140%; }
 @keyframes rise { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
 .rise { animation: rise .6s cubic-bezier(.2,.7,.3,1) both; }
 .rise-1 { animation-delay:.05s } .rise-2 { animation-delay:.15s } .rise-3 { animation-delay:.25s } .rise-4 { animation-delay:.35s }
@@ -95,6 +123,37 @@ body {
 .lift { transition: transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s cubic-bezier(.2,.7,.3,1); }
 .lift:hover { transform: translateY(-4px); box-shadow: 6px 6px 0 0 rgba(12,12,12,.9); }
 
+/* Top-accent card: a red rule that wipes in from the left on hover. Used on
+   the dark dashboard cards / feature tiles to add a bit of directional motion
+   without moving the card itself (so it composes with, or stands in for,
+   .lift on elements that shouldn't jump). */
+.accent-top { position: relative; }
+.accent-top::before {
+  content: ''; position: absolute; top: 0; left: 0; height: 2px; width: 100%;
+  background: var(--red); transform: scaleX(0); transform-origin: left;
+  transition: transform .3s cubic-bezier(.2,.7,.3,1);
+}
+.accent-top:hover::before { transform: scaleX(1); }
+
+/* Thin scroll-progress rail pinned under the sticky nav — a quiet, precise
+   "how far down am I" indicator in the brand red. Width is set inline from
+   the scroll fraction; no layout cost, just a transform-free width tween. */
+.scroll-rail {
+  position: fixed; top: 0; left: 0; height: 2px; z-index: 50;
+  background: var(--red); width: 0;
+  transition: width .1s linear;
+}
+
+/* Count-up numerals: the value fades/rises the first time it mounts, pairing
+   with the JS tween so a stat doesn't just pop from 0 to its final value. */
+@keyframes num-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.num-in { animation: num-in .5s cubic-bezier(.2,.7,.3,1) both; }
+
+/* Staggered list-row entrance for dashboard tables: each row eases up as the
+   list renders. Delay is set inline per row so any count cascades. */
+@keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.row-in { animation: row-in .4s cubic-bezier(.2,.7,.3,1) both; }
+
 /* Animated underline for nav / inline links: grows from the left on hover
    instead of the default instant underline. */
 .link-underline { position: relative; }
@@ -133,7 +192,8 @@ body {
 @keyframes mascot-asteroid { from { left: -12%; } to { left: 112%; } }
 .mascot-asteroid { animation-name: mascot-asteroid; animation-timing-function: linear; animation-iteration-count: infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .rise, .pulse-dot, .cursor-blink::after, .mascot-dodge, .mascot-flame, .mascot-eye, .mascot-asteroid { animation: none !important; }
+  .rise, .pulse-dot, .cursor-blink::after, .mascot-dodge, .mascot-flame, .mascot-eye, .mascot-asteroid,
+  .beacon::after, .num-in, .row-in { animation: none !important; }
   /* Reveal/lift/view-fade collapse to no-ops: content is shown immediately,
      never nudged or transitioned, for anyone who asked the OS to reduce motion. */
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
@@ -142,5 +202,7 @@ body {
   .lift { transition: none !important; }
   .lift:hover { transform: none !important; }
   .link-underline::after { transition: none !important; }
+  .btn-ink::before { display: none !important; }
+  .accent-top::before, .scroll-rail { transition: none !important; }
 }
 ::selection { background: var(--red); color:#fff; }

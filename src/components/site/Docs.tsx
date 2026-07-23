@@ -165,7 +165,7 @@ export default function Docs({ go }: { go: (p: Page) => void }) {
               find the daemon.
             </p>
             <Code>{`$ devplat connect
-  ● devplat v0.4.2 · env 6aea97af
+  ● devplat v1.1.0 · env 6aea97af
   ✓ assigned · tunnel active
 
   DOCKER_HOST=tcp://127.0.0.1:52731
