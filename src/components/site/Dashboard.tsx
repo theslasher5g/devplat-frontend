@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   API_URL, ApiError, LEVEL_META, api,
-  type ApiTokenInfo, type CreatedToken, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo,
+  type ApiTokenInfo, type AuditEntry, type CreatedToken, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo,
   type StatusSummary, type SubscriptionInfo, type TeamInfo, type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Logo, useCountUp } from './Shared';
+import { AuditList, Logo, useCountUp } from './Shared';
 
 /** A dashboard metric that counts up to its value once loaded. `value` is the
  *  resolved number, or null while still loading (renders a skeleton). */
@@ -665,6 +665,7 @@ function Billing() {
 
 function Team() {
   const [info, setInfo] = useState<TeamInfo | null>(null);
+  const [audit, setAudit] = useState<AuditEntry[] | null>(null);
   const [inviteMail, setInviteMail] = useState('');
   const [inviteRole, setInviteRole] = useState<'developer' | 'admin'>('developer');
   const [inviting, setInviting] = useState(false);
@@ -677,6 +678,13 @@ function Team() {
   useEffect(load, [load]);
 
   const canManage = info && info.team.myRole !== 'developer';
+
+  // The activity log is admin/owner-only server-side; fetch once we know the role.
+  useEffect(() => {
+    if (canManage && audit === null) {
+      api<{ entries: AuditEntry[] }>('/teams/me/audit').then((d) => setAudit(d.entries)).catch(() => setAudit([]));
+    }
+  }, [canManage, audit]);
 
   const invite = async () => {
     setErr('');
@@ -748,6 +756,12 @@ function Team() {
                 </div>
               ))}
             </div>
+          </Card>
+        )}
+        {canManage && audit && audit.length > 0 && (
+          <Card>
+            <CardHead title="Activity log" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">recent</span>} />
+            <AuditList entries={audit} />
           </Card>
         )}
       </div>

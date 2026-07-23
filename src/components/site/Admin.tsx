@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   api, type AdminActivity, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam,
-  type AdminTimeseries, type AdminUser, type PlanTier, type PostType, type StatusLevel, type StatusPost,
+  type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier, type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { Logo } from './Shared';
+import { AuditList, Logo } from './Shared';
 
 const COMPONENT_LEVELS: StatusLevel[] = ['operational', 'degraded', 'partial_outage', 'major_outage', 'maintenance'];
 const STATES_BY_TYPE: Record<PostType, string[]> = {
@@ -538,12 +538,13 @@ function ActivityFeed({ activity }: { activity: AdminActivity }) {
   );
 }
 
-type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'status';
+type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'audit' | 'status';
 const ADMIN_NAV: { key: AdminView; label: string; icon: string }[] = [
   { key: 'overview', label: 'Overview', icon: '▦' },
   { key: 'teams', label: 'Teams', icon: '◉' },
   { key: 'users', label: 'Users', icon: '☺' },
   { key: 'hosts', label: 'Hosts', icon: '▤' },
+  { key: 'audit', label: 'Audit log', icon: '❈' },
   { key: 'status', label: 'Status page', icon: '◈' },
 ];
 
@@ -557,6 +558,7 @@ export default function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [activity, setActivity] = useState<AdminActivity | null>(null);
   const [series, setSeries] = useState<AdminTimeseries | null>(null);
+  const [audit, setAudit] = useState<AuditEntry[] | null>(null);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminTeam | null>(null);
@@ -576,6 +578,13 @@ export default function Admin() {
       .then(([o, h, t, u, a, s]) => { setOverview(o); setHosts(h.hosts); setTeams(t.teams); setUsers(u.users); setActivity(a); setSeries(s); })
       .catch(() => setErr('Could not load admin data — platform-admin role required.'));
   }, []);
+
+  // Audit log lazy-loads the first time its tab is opened.
+  useEffect(() => {
+    if (view === 'audit' && audit === null) {
+      api<{ entries: AuditEntry[] }>('/admin/audit').then((d) => setAudit(d.entries)).catch(() => setAudit([]));
+    }
+  }, [view, audit]);
 
   const errorRate = overview?.vmStartErrorRate7d;
 
@@ -807,6 +816,13 @@ export default function Admin() {
             </table>
           </div>
         </Card>
+        )}
+
+        {view === 'audit' && (
+          <Card>
+            <CardHead title="Audit log" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">last 100 actions</span>} />
+            {audit === null ? <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p> : <AuditList entries={audit} />}
+          </Card>
         )}
 
         {view === 'status' && <StatusAdmin />}

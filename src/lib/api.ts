@@ -133,6 +133,11 @@ export interface AdminUser {
   teams: { teamId: string; teamName: string; role: string }[];
 }
 
+export interface AuditEntry {
+  id: string; action: string; target: string | null; actorEmail: string | null;
+  detail: Record<string, unknown>; createdAt: string;
+}
+
 /* ---------- Status page / incidents ---------- */
 
 export type StatusLevel = 'operational' | 'maintenance' | 'degraded' | 'partial_outage' | 'major_outage';

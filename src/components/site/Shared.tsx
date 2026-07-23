@@ -1,8 +1,55 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { api, LEVEL_META, type StatusSummary } from '@/lib/api';
+import { api, LEVEL_META, type AuditEntry, type StatusSummary } from '@/lib/api';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';
+
+// Friendly label + icon for each audit action key. Unknown keys fall back to
+// the raw key so a new action still renders (just less prettily).
+const AUDIT_META: Record<string, { label: string; icon: string }> = {
+  'token.create': { label: 'created an API token', icon: '⌘' },
+  'token.revoke': { label: 'revoked an API token', icon: '⌘' },
+  'member.invite': { label: 'invited a member', icon: '✚' },
+  'team.rename': { label: 'renamed the team', icon: '✎' },
+  'plan.override.set': { label: 'set a plan override', icon: '✦' },
+  'plan.override.clear': { label: 'cleared a plan override', icon: '✦' },
+  'team.delete': { label: 'deleted a team', icon: '✕' },
+  'user.delete': { label: 'deleted a user', icon: '✕' },
+};
+
+function auditWhen(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
+  return new Date(iso).toLocaleDateString('en-CH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Dark-theme audit-log list, shared by the admin and team dashboards. */
+export function AuditList({ entries }: { entries: AuditEntry[] }) {
+  if (entries.length === 0) {
+    return <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">No activity recorded yet.</p>;
+  }
+  return (
+    <div className="divide-y divide-[--dark-line]">
+      {entries.map((e) => {
+        const meta = AUDIT_META[e.action] ?? { label: e.action, icon: '·' };
+        return (
+          <div key={e.id} className="flex items-center gap-3 px-5 py-3">
+            <span className="w-6 h-6 grid place-items-center border border-[--dark-line] text-[11px] shrink-0" aria-hidden>{meta.icon}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                <span className="text-[--dark-muted]">{e.actorEmail ?? 'system'}</span>{' '}{meta.label}
+                {e.target && <> · <span className="font-mono2 text-[12px] text-white break-all">{e.target}</span></>}
+              </p>
+            </div>
+            <span className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">{auditWhen(e.createdAt)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /** Live status badge for the footer — reflects the real aggregate from
  *  /status (was a hardcoded "Operational") and links to the status page. */
