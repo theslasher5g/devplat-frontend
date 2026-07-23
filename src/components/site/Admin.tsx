@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  api, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam, type AdminUser,
-  type PlanTier, type PostType, type StatusLevel, type StatusPost,
+  api, type AdminActivity, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam,
+  type AdminTimeseries, type AdminUser, type PlanTier, type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Logo } from './Shared';
@@ -420,13 +420,143 @@ function StatusAdmin() {
   );
 }
 
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-CH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+/** MRR split by tier as labelled proportion bars. */
+function MrrByTier({ overview }: { overview: AdminOverview }) {
+  const rows = overview.mrrByTier;
+  const total = overview.mrrChf;
+  return (
+    <Card>
+      <CardHead title="MRR by tier" right={<span className="font-mono2 text-[11px] text-[--dark-muted]">CHF {total} / mo</span>} />
+      <div className="p-5 space-y-3">
+        {rows.length === 0 && <p className="font-mono2 text-xs text-[--dark-muted]">No paid teams yet.</p>}
+        {rows.map((r) => (
+          <div key={r.tier}>
+            <div className="flex items-center justify-between text-xs font-mono2 mb-1">
+              <span>{r.label} <span className="text-[--dark-muted]">× {r.count}</span></span>
+              <span className="text-[--dark-muted]">CHF {r.chfTotal}</span>
+            </div>
+            <div className="h-2 bg-white/[0.08] border border-[--dark-line]">
+              <div className="h-full bg-[#57C99A]/70" style={{ width: `${total > 0 ? Math.round((r.chfTotal / total) * 100) : 0}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** 14-day stacked bar chart of VM starts (green) with failed starts (red) on
+ *  top, plus a signups sparkline row. Pure divs, no chart lib. */
+function ActivityChart({ series }: { series: AdminTimeseries }) {
+  const days = series.days;
+  const maxRun = Math.max(1, ...days.map((d) => d.starts + d.failures));
+  const maxSignup = Math.max(1, ...days.map((d) => d.signups));
+  const totalStarts = days.reduce((s, d) => s + d.starts, 0);
+  const totalSignups = days.reduce((s, d) => s + d.signups, 0);
+  return (
+    <Card>
+      <CardHead title={`Activity · ${days.length}d`} right={
+        <span className="font-mono2 text-[10px] text-[--dark-muted] flex gap-3">
+          <span><span className="text-[#57C99A]">■</span> {totalStarts} starts</span>
+          <span><span className="text-[#8AB8F0]">■</span> {totalSignups} signups</span>
+        </span>
+      } />
+      <div className="p-5">
+        <div className="flex items-end gap-[3px] h-28">
+          {days.map((d) => {
+            const h = ((d.starts + d.failures) / maxRun) * 100;
+            const failPct = d.starts + d.failures > 0 ? (d.failures / (d.starts + d.failures)) * 100 : 0;
+            return (
+              <div key={d.date} className="flex-1 flex flex-col justify-end h-full group relative"
+                title={`${d.date} · ${d.starts} starts, ${d.failures} failed, ${d.signups} signups`}>
+                <div className="w-full bg-[#57C99A]/70" style={{ height: `${Math.max(h, d.starts + d.failures > 0 ? 4 : 0)}%` }}>
+                  {failPct > 0 && <div className="w-full bg-[--red]" style={{ height: `${failPct}%` }} />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* signups row */}
+        <div className="flex items-end gap-[3px] h-8 mt-1 border-t border-[--dark-line] pt-1">
+          {days.map((d) => (
+            <div key={d.date} className="flex-1 flex flex-col justify-end h-full" title={`${d.date} · ${d.signups} signups`}>
+              <div className="w-full bg-[#8AB8F0]/70" style={{ height: `${(d.signups / maxSignup) * 100}%` }} />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between font-mono2 text-[9px] text-[--dark-muted] mt-1.5">
+          <span>{days[0]?.date.slice(5)}</span>
+          <span>today</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Recent signups + recent failed starts, two short feeds side by side. */
+function ActivityFeed({ activity }: { activity: AdminActivity }) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Card>
+        <CardHead title="Recent signups" />
+        <div className="divide-y divide-[--dark-line]">
+          {activity.recentSignups.length === 0 && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">None yet.</p>}
+          {activity.recentSignups.map((s) => (
+            <div key={s.id} className="px-5 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{s.name}</p>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] truncate">{s.ownerEmail ?? '—'}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <span className={`font-mono2 text-[10px] uppercase tracking-wider ${s.ownerVerified ? 'text-[#57C99A]' : 'text-[#E8B44C]'}`}>{s.ownerVerified ? 'verified' : 'pending'}</span>
+                <p className="font-mono2 text-[10px] text-[--dark-muted]">{fmtDateTime(s.createdAt)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <CardHead title="Recent failed VM starts" />
+        <div className="divide-y divide-[--dark-line]">
+          {activity.recentFailures.length === 0 && <p className="px-5 py-4 font-mono2 text-xs text-[#57C99A]">No failed starts. ✓</p>}
+          {activity.recentFailures.map((f) => (
+            <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{f.teamName}</p>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] truncate">{f.vmId ?? 'no VM id'}</p>
+              </div>
+              <p className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">{fmtDateTime(f.occurredAt)}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'status';
+const ADMIN_NAV: { key: AdminView; label: string; icon: string }[] = [
+  { key: 'overview', label: 'Overview', icon: '▦' },
+  { key: 'teams', label: 'Teams', icon: '◉' },
+  { key: 'users', label: 'Users', icon: '☺' },
+  { key: 'hosts', label: 'Hosts', icon: '▤' },
+  { key: 'status', label: 'Status page', icon: '◈' },
+];
+
 export default function Admin() {
   const navigate = useNavigate();
   const { me, logout } = useAuth();
+  const [view, setView] = useState<AdminView>('overview');
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [hosts, setHosts] = useState<AdminHost[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [activity, setActivity] = useState<AdminActivity | null>(null);
+  const [series, setSeries] = useState<AdminTimeseries | null>(null);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminTeam | null>(null);
@@ -440,8 +570,10 @@ export default function Admin() {
       api<{ hosts: AdminHost[] }>('/admin/hosts'),
       api<{ teams: AdminTeam[] }>('/admin/subscribers'),
       api<{ users: AdminUser[] }>('/admin/users'),
+      api<AdminActivity>('/admin/activity'),
+      api<AdminTimeseries>('/admin/timeseries?days=14'),
     ])
-      .then(([o, h, t, u]) => { setOverview(o); setHosts(h.hosts); setTeams(t.teams); setUsers(u.users); })
+      .then(([o, h, t, u, a, s]) => { setOverview(o); setHosts(h.hosts); setTeams(t.teams); setUsers(u.users); setActivity(a); setSeries(s); })
       .catch(() => setErr('Could not load admin data — platform-admin role required.'));
   }, []);
 
@@ -471,20 +603,52 @@ export default function Admin() {
         </div>
       </header>
 
-      <main className="p-5 lg:p-8 grid gap-5 max-w-7xl mx-auto">
-        {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+      {/* tab navigation — the dashboard is no longer one long page */}
+      <div className="border-b border-[--dark-line] sticky top-16 bg-[--dark]/95 backdrop-blur z-20">
+        <div className="max-w-7xl mx-auto px-2 sm:px-5 flex overflow-x-auto">
+          {ADMIN_NAV.map((i) => (
+            <button key={i.key} onClick={() => setView(i.key)}
+              className={`shrink-0 flex items-center gap-2 px-4 py-3 text-sm border-b-2 transition-colors ${view === i.key ? 'text-white border-[--red]' : 'text-[--dark-muted] border-transparent hover:text-white'}`}>
+              <span aria-hidden>{i.icon}</span>{i.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      <main className="p-5 lg:p-8 max-w-7xl mx-auto">
+        {err && <p className="font-mono2 text-xs text-[#F07A6A] mb-5">{err}</p>}
+
+        <div key={view} className="view-in grid gap-5">
+        {view === 'overview' && <>
         {/* KPI row */}
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Teams" value={overview ? String(overview.totalTeams) : '…'} sub={`${overview?.activeSubscriptions ?? 0} active subscriptions`} />
+          <Kpi label="Teams" value={overview ? String(overview.totalTeams) : '…'} sub={overview ? `+${overview.newTeams7d} in 7d · ${overview.activeSubscriptions} active subs` : undefined} />
           <Kpi label="MRR" value={overview ? `${overview.mrrChf}` : '…'} sub="CHF / month, list prices" />
-          <Kpi label="VM starts · 7d" value={overview ? String(overview.vmStarts7d) : '…'}
-            sub={overview?.dataPlaneConnected ? undefined : 'seed data — awaiting data plane'} />
-          <Kpi label="VM start error rate · 7d" value={errorRate == null ? '—' : `${(errorRate * 100).toFixed(1)}%`}
-            sub={overview ? `${overview.vmStartFailures7d} failed starts` : undefined} />
+          <Kpi label="Environments" value={overview ? String(overview.runningEnvironments) : '…'}
+            sub={overview ? `${overview.queuedEnvironments} queued` : undefined} />
+          <Kpi label="VM start error · 7d" value={errorRate == null ? '—' : `${(errorRate * 100).toFixed(1)}%`}
+            sub={overview ? `${overview.vmStarts7d} starts · ${overview.vmStartFailures7d} failed` : undefined} />
         </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          {series && <ActivityChart series={series} />}
+          {overview && <MrrByTier overview={overview} />}
+        </div>
+        {activity && <ActivityFeed activity={activity} />}
+        {/* cache */}
+        <Card>
+          <CardHead title="Image cache hit rate" />
+          <div className="p-5">
+            <p className="font-doto text-4xl">{overview?.cacheHitRate == null ? '—' : `${(overview.cacheHitRate * 100).toFixed(1)}%`}</p>
+            <p className="text-xs text-[--dark-muted] mt-1">
+              {overview?.cacheHitRate == null
+                ? 'Pooled hits ÷ lookups across hosts — shows once a host reports registry-cache stats.'
+                : 'Pooled across all hosts (cumulative hits ÷ lookups from each registry proxy).'}
+            </p>
+          </div>
+        </Card>
+        </>}
 
-        {/* hosts */}
+        {view === 'hosts' && (
         <Card>
           <CardHead title="Host utilization" right={
             overview?.dataPlaneConnected
@@ -519,22 +683,24 @@ export default function Admin() {
             ))}
           </div>
         </Card>
+        )}
 
-        {/* search across teams + users */}
-        <div className="relative">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search teams or users by name / email…"
-            className="w-full bg-[--dark-card] border border-[--dark-line] pl-9 pr-4 py-2.5 text-sm outline-none focus:border-white"
-          />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[--dark-muted] text-sm" aria-hidden>⌕</span>
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 font-mono2 text-[10px] text-[--dark-muted] hover:text-white">clear ✕</button>
-          )}
-        </div>
+        {(view === 'teams' || view === 'users') && (
+          <div className="relative">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={view === 'teams' ? 'Search teams by name or owner email…' : 'Search users by email or team…'}
+              className="w-full bg-[--dark-card] border border-[--dark-line] pl-9 pr-4 py-2.5 text-sm outline-none focus:border-white"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[--dark-muted] text-sm" aria-hidden>⌕</span>
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 font-mono2 text-[10px] text-[--dark-muted] hover:text-white">clear ✕</button>
+            )}
+          </div>
+        )}
 
-        {/* subscribers */}
+        {view === 'teams' && (
         <Card>
           <CardHead title={`Teams & subscriptions (${shownTeams.length}${q ? ` of ${teams.length}` : ''})`} />
           <div className="overflow-x-auto">
@@ -592,8 +758,9 @@ export default function Admin() {
             </table>
           </div>
         </Card>
+        )}
 
-        {/* users */}
+        {view === 'users' && (
         <Card>
           <CardHead title={`Users (${shownUsers.length}${q ? ` of ${users.length}` : ''})`} />
           <div className="overflow-x-auto">
@@ -640,22 +807,10 @@ export default function Admin() {
             </table>
           </div>
         </Card>
+        )}
 
-        {/* status page management */}
-        <StatusAdmin />
-
-        {/* cache */}
-        <Card>
-          <CardHead title="Image cache hit rate" />
-          <div className="p-5">
-            <p className="font-doto text-4xl">{overview?.cacheHitRate == null ? '—' : `${(overview.cacheHitRate * 100).toFixed(1)}%`}</p>
-            <p className="text-xs text-[--dark-muted] mt-1">
-              {overview?.cacheHitRate == null
-                ? 'Pooled hits ÷ lookups across hosts — shows once a host reports registry-cache stats.'
-                : 'Pooled across all hosts (cumulative hits ÷ lookups from each registry proxy).'}
-            </p>
-          </div>
-        </Card>
+        {view === 'status' && <StatusAdmin />}
+        </div>
       </main>
 
       {deleteTarget && (

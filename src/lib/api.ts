@@ -75,9 +75,21 @@ export interface EnvironmentInfo {
 }
 
 export interface AdminOverview {
-  totalTeams: number; activeSubscriptions: number; mrrChf: number;
+  totalTeams: number; newTeams7d: number; activeSubscriptions: number;
+  mrrChf: number;
+  mrrByTier: { tier: PlanTier; label: string; count: number; chfEach: number; chfTotal: number }[];
   vmStarts7d: number; vmStartFailures7d: number; vmStartErrorRate7d: number | null;
+  runningEnvironments: number; queuedEnvironments: number;
   cacheHitRate: number | null; dataPlaneConnected: boolean;
+}
+
+export interface AdminActivity {
+  recentSignups: { id: string; name: string; planLabel: string; ownerEmail: string | null; ownerVerified: boolean; createdAt: string }[];
+  recentFailures: { id: string; teamName: string; vmId: string | null; occurredAt: string }[];
+}
+
+export interface AdminTimeseries {
+  days: { date: string; starts: number; failures: number; signups: number }[];
 }
 
 export interface AdminHost {
