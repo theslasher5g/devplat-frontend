@@ -3,14 +3,16 @@ import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-ro
 import Activate from '@/components/site/Activate';
 import Admin from '@/components/site/Admin';
 import Auth, { InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
+import BugBounty from '@/components/site/BugBounty';
 import Contact from '@/components/site/Contact';
 import CookieNotice from '@/components/site/CookieNotice';
 import Dashboard from '@/components/site/Dashboard';
 import Docs from '@/components/site/Docs';
 import Download from '@/components/site/Download';
+import Faq from '@/components/site/Faq';
 import Home from '@/components/site/Home';
 import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
-import { Preise, Compliance } from '@/components/site/PreiseCompliance';
+import { Preise } from '@/components/site/PreiseCompliance';
 import Security from '@/components/site/Security';
 import { Footer, Nav, type Page, ScrollProgress } from '@/components/site/Shared';
 import Status, { StatusConfirmPage, StatusUnsubscribePage } from '@/components/site/Status';
@@ -24,7 +26,8 @@ export const PAGE_PATHS: Record<Page, string> = {
   preise: '/pricing',
   download: '/download',
   docs: '/docs',
-  compliance: '/legal',
+  faq: '/faq',
+  bugBounty: '/bug-bounty',
   contact: '/contact',
   imprint: '/legal/imprint',
   terms: '/legal/terms',
@@ -56,7 +59,8 @@ const PAGE_META: Partial<Record<Page, { title: string; description: string }>> =
   preise: { title: 'Pricing — devplat', description: 'Flat pricing by parallelism, no per-minute bills, no overages. Plans from CHF 19 to CHF 249 per month. 14-day free trial, no card.' },
   download: { title: 'Download the CLI — devplat', description: 'One static Go binary. Install on Linux, Windows, or CI in one line — then run your tests against remote containers.' },
   docs: { title: 'Docs — devplat', description: 'Install, authenticate, connect, and run your tests against a remote Testcontainers backend. CLI reference, CI setup, and troubleshooting.' },
-  compliance: { title: 'Privacy & Legal — devplat', description: 'GDPR and Swiss FADP compliance, a downloadable DPA, and data processed exclusively on our own hardware in Basel, Switzerland.' },
+  faq: { title: 'Community & FAQ — devplat', description: 'Answers to the questions developers ask before they sign up — plus the community and support channels for when yours isn’t here.' },
+  bugBounty: { title: 'Bug bounty — devplat', description: 'Break our tenant isolation, auth, or control plane and earn free months of devplat plus a Hall of Fame spot. Scope, rewards, and safe harbor.' },
   contact: { title: 'Contact — devplat', description: 'Get in touch with the devplat team.' },
   imprint: { title: 'Imprint — devplat', description: 'Legal disclosure and operator details for devplat, Basel, Switzerland.' },
   terms: { title: 'Terms of Service — devplat', description: 'The terms governing use of devplat’s remote Testcontainers backend.' },
@@ -166,11 +170,12 @@ function MarketingPage({ page }: { page: Exclude<Page, 'auth' | 'app'> }) {
     page === 'preise' ? <Preise go={go} /> :
     page === 'download' ? <Download go={go} /> :
     page === 'docs' ? <Docs go={go} /> :
+    page === 'faq' ? <Faq go={go} /> :
+    page === 'bugBounty' ? <BugBounty go={go} /> :
     page === 'contact' ? <Contact /> :
     page === 'imprint' ? <Imprint /> :
     page === 'terms' ? <Terms /> :
-    page === 'privacy' ? <PrivacyPolicy /> :
-    <Compliance />;
+    <PrivacyPolicy />;
   return <MarketingLayout page={page}>{body}</MarketingLayout>;
 }
 
@@ -186,7 +191,8 @@ export default function App() {
           <Route path="/pricing" element={<MarketingPage page="preise" />} />
           <Route path="/download" element={<MarketingPage page="download" />} />
           <Route path="/docs" element={<MarketingPage page="docs" />} />
-          <Route path="/legal" element={<MarketingPage page="compliance" />} />
+          <Route path="/faq" element={<MarketingPage page="faq" />} />
+          <Route path="/bug-bounty" element={<MarketingPage page="bugBounty" />} />
           <Route path="/contact" element={<MarketingPage page="contact" />} />
           <Route path="/legal/imprint" element={<MarketingPage page="imprint" />} />
           <Route path="/legal/terms" element={<MarketingPage page="terms" />} />

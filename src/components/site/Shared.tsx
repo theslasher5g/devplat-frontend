@@ -73,7 +73,7 @@ function FooterStatus() {
   );
 }
 
-export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'docs' | 'compliance' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
+export type Page = 'home' | 'technik' | 'security' | 'preise' | 'download' | 'docs' | 'faq' | 'bugBounty' | 'contact' | 'imprint' | 'terms' | 'privacy' | 'auth' | 'app';
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -234,44 +234,65 @@ function NavAuthButtons({ go }: { go: (p: Page) => void }) {
   );
 }
 
+function FooterCol({ title, links }: { title: string; links: [string, () => void][] }) {
+  return (
+    <div>
+      <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--ink]/70 mb-4">{title}</p>
+      <ul className="space-y-2.5 text-sm text-[--ink-soft]">
+        {links.map(([label, onClick]) => (
+          <li key={label}>
+            <button className="link-underline hover:text-[--ink] transition-colors" onClick={onClick}>{label}</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Footer({ go }: { go: (p: Page) => void }) {
   return (
     <footer className="border-t hairline bg-[--paper]">
-      <div className="mx-auto max-w-6xl px-5 py-14 grid gap-10 md:grid-cols-4">
-        <div>
+      <div className="mx-auto max-w-6xl px-5 py-16 grid gap-12 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        {/* brand */}
+        <div className="max-w-[30ch]">
           <Logo onClick={() => go('home')} />
-          <p className="mt-3 text-sm text-[--ink-soft] max-w-[24ch]">Remote backend for Testcontainers. Hosted in Switzerland.</p>
+          <p className="mt-4 text-sm text-[--ink-soft]">
+            Your tests, our containers. A remote Testcontainers backend on isolated microVMs — hosted on our own hardware in Basel, Switzerland.
+          </p>
+          <div className="mt-5">
+            <button onClick={() => go('auth')} className="btn-ink px-5 py-2.5 text-sm">Start free — 14 days</button>
+          </div>
           <FooterStatus />
         </div>
-        <div>
-          <p className="eyebrow mb-3">Product</p>
-          <ul className="space-y-2 text-sm text-[--ink-soft]">
-            <li><button className="hover:text-[--ink]" onClick={() => go('technik')}>Architecture</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('preise')}>Pricing</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('docs')}>Docs</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('download')}>Download the CLI</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('auth')}>Dashboard</button></li>
-          </ul>
-        </div>
-        <div>
-          <p className="eyebrow mb-3">Trust</p>
-          <ul className="space-y-2 text-sm text-[--ink-soft]">
-            <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>GDPR & Swiss FADP</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('compliance')}>Download the DPA</button></li>
-            <li><button className="hover:text-[--ink]" onClick={() => go('security')}>Security model</button></li>
-          </ul>
-        </div>
-        <div>
-          <p className="eyebrow mb-3">Contact</p>
-          <ul className="space-y-2 text-sm text-[--ink-soft]">
-            <li><button className="hover:text-[--ink]" onClick={() => go('contact')}>hello@devplat.ch</button></li>
-            <li>Basel, Switzerland</li>
-          </ul>
-        </div>
+
+        <FooterCol title="Product" links={[
+          ['How it works', () => go('technik')],
+          ['Pricing', () => go('preise')],
+          ['Documentation', () => go('docs')],
+          ['Download the CLI', () => go('download')],
+          ['Dashboard', () => go('auth')],
+        ]} />
+
+        <FooterCol title="Resources" links={[
+          ['Community & FAQ', () => go('faq')],
+          ['Security model', () => go('security')],
+          ['Bug bounty', () => go('bugBounty')],
+          ['Status', () => { window.location.href = '/status'; }],
+        ]} />
+
+        <FooterCol title="Company" links={[
+          ['Contact', () => go('contact')],
+          ['hello@devplat.ch', () => { window.location.href = 'mailto:hello@devplat.ch'; }],
+        ]} />
       </div>
+
       <div className="border-t hairline">
-        <div className="mx-auto max-w-6xl px-5 py-4 flex flex-wrap gap-3 justify-between text-xs text-[--ink-soft] font-mono2">
-          <span>© 2026 devplat</span>
+        <div className="mx-auto max-w-6xl px-5 py-5 flex flex-wrap gap-x-6 gap-y-2 justify-between items-center text-xs text-[--ink-soft] font-mono2">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>© {new Date().getFullYear()} devplat</span>
+            <span aria-hidden className="text-[--line]">·</span>
+            <span>Built in Basel, Switzerland</span>
+          </span>
           <span className="flex gap-3">
             <button className="hover:text-[--ink]" onClick={() => go('imprint')}>Imprint</button>
             <span aria-hidden>·</span>
