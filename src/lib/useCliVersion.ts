@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api } from './api';
 
 // Shipped fallback: what the UI shows before (or if) the live lookup resolves,
 // so version text is never blank and still works offline / behind a strict CSP.
@@ -24,32 +25,27 @@ export function isOlderVersion(a: string, b: string): boolean {
 }
 
 /**
- * The current CLI release, read at runtime from the release host's
- * `version.txt` so version strings and download URLs track real releases
- * without a frontend redeploy. Best-effort: a bare semver is validated before
- * use and any failure (offline, CORS, junk contents) keeps the shipped
- * fallback. The host must send `Access-Control-Allow-Origin: *` on version.txt
- * for the cross-origin read to succeed; otherwise the fallback simply stands.
+ * The current CLI release, tracked at runtime so version strings and download
+ * URLs follow real releases without a frontend redeploy. Reads the API's
+ * `/cli/latest-version`, which proxies (and caches) the release host's
+ * version.txt server-side — get.devplat.ch itself sends no CORS headers, so the
+ * browser can't read it directly. Best-effort: any failure keeps the shipped
+ * fallback, so the value is never blank.
  */
 export function useCliVersion(): string {
   const [version, setVersion] = useState(FALLBACK_CLI_VERSION);
   useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    fetch('https://get.devplat.ch/version.txt', { signal: controller.signal, cache: 'no-store' })
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error('bad status'))))
-      .then((raw) => {
-        const trimmed = raw.trim();
-        // Guard against an error page or garbage ending up in download URLs:
-        // only accept a bare semver (optionally v-prefixed), normalised to the
-        // v-prefixed form the release paths use (get.devplat.ch/vX.Y.Z/…).
-        if (/^v?\d+\.\d+\.\d+$/.test(trimmed)) {
-          setVersion(trimmed.startsWith('v') ? trimmed : `v${trimmed}`);
+    let alive = true;
+    api<{ version: string }>('/cli/latest-version')
+      .then((d) => {
+        // Defence in depth: the endpoint already validates, but re-check before
+        // this lands in download URLs.
+        if (alive && /^v?\d+\.\d+\.\d+$/.test(d.version)) {
+          setVersion(d.version.startsWith('v') ? d.version : `v${d.version}`);
         }
       })
-      .catch(() => { /* keep fallback */ })
-      .finally(() => clearTimeout(timer));
-    return () => { controller.abort(); clearTimeout(timer); };
+      .catch(() => { /* keep fallback */ });
+    return () => { alive = false; };
   }, []);
   return version;
 }
