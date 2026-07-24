@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useCliVersion } from '@/lib/useCliVersion';
 import { Eyebrow, type Page } from './Shared';
 
 // A single-page docs experience in the site's own design system (no separate
@@ -44,6 +45,7 @@ function H({ id, kicker, children }: { id: string; kicker: string; children: Rea
 
 export default function Docs({ go }: { go: (p: Page) => void }) {
   const [active, setActive] = useState(SECTIONS[0].id);
+  const version = useCliVersion();
 
   // Scroll-spy: highlight the rail entry whose section is nearest the top of
   // the viewport. One observer over all section headings; the topmost
@@ -165,7 +167,7 @@ export default function Docs({ go }: { go: (p: Page) => void }) {
               find the daemon.
             </p>
             <Code>{`$ devplat connect
-  ● devplat v1.1.0 · env 6aea97af
+  ● devplat ${version} · env 6aea97af
   ✓ assigned · tunnel active
 
   DOCKER_HOST=tcp://127.0.0.1:52731

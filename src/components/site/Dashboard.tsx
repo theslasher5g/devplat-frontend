@@ -7,6 +7,7 @@ import {
   type StatusSummary, type SubscriptionInfo, type TeamInfo, type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { isOlderVersion, useCliVersion } from '@/lib/useCliVersion';
 import { AuditList, Logo, useCountUp } from './Shared';
 
 /** A dashboard metric that counts up to its value once loaded. `value` is the
@@ -718,6 +719,13 @@ function Tokens() {
   const [scope, setScope] = useState<'ci:run' | 'dev:run'>('ci:run');
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [err, setErr] = useState('');
+  const latest = useCliVersion();
+  // The oldest CLI version any token has reported that's behind latest — drives
+  // the one-line "update available" banner. null when every seen CLI is current.
+  const outdated = (tokens ?? [])
+    .map((t) => t.lastCliVersion)
+    .filter((v): v is string => !!v && isOlderVersion(v, latest))
+    .sort((a, b) => (isOlderVersion(a, b) ? -1 : 1))[0] ?? null;
 
   const load = useCallback(() => {
     api<{ tokens: ApiTokenInfo[] }>('/tokens').then((d) => setTokens(d.tokens)).catch(() => setErr('Could not load tokens.'));
@@ -751,6 +759,15 @@ function Tokens() {
 
   return (
     <div className="grid gap-5">
+      {outdated && (
+        <div className="border border-[#E8B44C]/40 bg-[#E8B44C]/[0.06] px-5 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-mono2 text-[10px] uppercase tracking-widest text-[#E8B44C]">CLI update available</span>
+          <span className="text-sm text-[--dark-text]">
+            A CLI on <span className="font-mono2">{outdated}</span> connected recently — latest is <span className="font-mono2">{latest}</span>.
+          </span>
+          <span className="font-mono2 text-[11px] text-[--dark-muted]">Update: <span className="text-[--dark-text]">curl -fsSL https://get.devplat.ch | sh</span></span>
+        </div>
+      )}
       <Card>
         <CardHead title="API tokens" right={<button onClick={() => { setCreating(true); setCreated(null); }} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">+ Create token</button>} />
         <div className="divide-y divide-[--dark-line]">
@@ -759,7 +776,14 @@ function Tokens() {
           {tokens?.map((t) => (
             <div key={t.id} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_150px_130px_120px_auto] gap-3 items-center px-5 py-3.5 text-sm">
               <div>
-                <p className="font-medium">{t.label}</p>
+                <p className="font-medium flex items-center gap-2 flex-wrap">
+                  {t.label}
+                  {t.lastCliVersion && (
+                    isOlderVersion(t.lastCliVersion, latest)
+                      ? <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-1.5 py-0.5" title={`CLI ${t.lastCliVersion} — update to ${latest}`}>{t.lastCliVersion} · update</span>
+                      : <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#57C99A]/30 text-[#57C99A] px-1.5 py-0.5" title="CLI is up to date">{t.lastCliVersion}</span>
+                  )}
+                </p>
                 <p className="font-mono2 text-[11px] text-[--dark-muted]">{t.prefix}</p>
               </div>
               <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">Scope: {t.scope}</span>

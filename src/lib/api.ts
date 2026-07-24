@@ -49,6 +49,9 @@ export interface TeamInfo {
 export interface ApiTokenInfo {
   id: string; label: string; prefix: string; scope: string;
   createdAt: string; lastUsedAt: string | null;
+  // Last CLI version seen authenticating with this token (null until a
+  // versioned CLI has used it), for the "update available" hint.
+  lastCliVersion?: string | null;
   // 14 daily run counts (oldest→newest) for the usage sparkline, and their sum.
   usage?: number[]; runsTotal?: number;
 }

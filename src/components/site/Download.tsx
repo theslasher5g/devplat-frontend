@@ -1,39 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useCliVersion } from '@/lib/useCliVersion';
 import { Eyebrow, type Page } from './Shared';
-
-// Shipped fallback: what the page shows before (or if) the live lookup below
-// resolves, so it's never blank and still works fully offline / behind a strict
-// CSP. Bump this on release too, so a stale cache never lags far behind.
-const FALLBACK_VERSION = 'v1.1.0';
-
-// Single source of truth for the current release is the release host itself:
-// `get.devplat.ch/version.txt` is written by the release pipeline, so the page
-// tracks the real latest build without a frontend redeploy. Best-effort — any
-// failure (offline, CORS, junk contents) keeps the shipped fallback. The host
-// must send `Access-Control-Allow-Origin: *` on version.txt for the read to
-// succeed cross-origin; if it doesn't, the fallback simply stands.
-function useCliVersion(): string {
-  const [version, setVersion] = useState(FALLBACK_VERSION);
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    fetch('https://get.devplat.ch/version.txt', { signal: controller.signal, cache: 'no-store' })
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error('bad status'))))
-      .then((raw) => {
-        const trimmed = raw.trim();
-        // Guard against an error page or garbage ending up in download URLs:
-        // only accept a bare semver (optionally v-prefixed), then normalise to
-        // the v-prefixed form the release paths use (get.devplat.ch/vX.Y.Z/…).
-        if (/^v?\d+\.\d+\.\d+$/.test(trimmed)) {
-          setVersion(trimmed.startsWith('v') ? trimmed : `v${trimmed}`);
-        }
-      })
-      .catch(() => { /* keep fallback */ })
-      .finally(() => clearTimeout(timer));
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, []);
-  return version;
-}
 
 // Linux and Windows only for now — both amd64. macOS and arm64 builds are a
 // later addition (same release pipeline, just more targets), not listed
