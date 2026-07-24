@@ -553,41 +553,61 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
 
       {usage && <UsageChart series={usage} />}
 
-      {/* Run history — past (released/failed) runs, collapsed by default noise. */}
-      {runs && runs.length > 0 && (
-        <Card>
-          <CardHead title="Run history" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">last {runs.length}</span>} />
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[640px]">
-              <thead>
-                <tr className="border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
-                  <th className="px-5 py-2.5 font-medium">Run</th>
-                  <th className="px-5 py-2.5 font-medium">Host</th>
-                  <th className="px-5 py-2.5 font-medium">Started</th>
-                  <th className="px-5 py-2.5 font-medium">Duration</th>
-                  <th className="px-5 py-2.5 font-medium">Result</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[--dark-line]">
-                {runs.map((r) => (
-                  <tr key={r.requestId} className="font-mono2 text-xs">
-                    <td className="px-5 py-2.5"><span className="text-white">{r.vmId ?? r.requestId.slice(0, 12)}</span></td>
-                    <td className="px-5 py-2.5 text-[--dark-muted]">{r.hostName ?? '—'}{r.region ? ` · ${r.region}` : ''}</td>
-                    <td className="px-5 py-2.5 text-[--dark-muted]">{fmtAgo(r.requestedAt)}</td>
-                    <td className="px-5 py-2.5 text-[--dark-muted]">{fmtDuration(r.durationSeconds)}</td>
-                    <td className="px-5 py-2.5">
-                      {r.status === 'failed'
-                        ? <span className="text-[#F07A6A]" title={r.error ?? undefined}>failed</span>
-                        : <span className="text-[--dark-muted]">released</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      {/* Run history — past (released/failed) runs, collapsed by default so it
+          doesn't dominate the page; expand to see the full list. */}
+      {runs && runs.length > 0 && <RunHistory runs={runs} />}
     </div>
+  );
+}
+
+/** Past-runs table that stays out of the way: collapsed to a one-line summary
+ *  by default, expanding to a scrollable list on click. */
+function RunHistory({ runs }: { runs: EnvironmentRun[] }) {
+  const [open, setOpen] = useState(false);
+  const failed = runs.filter((r) => r.status === 'failed').length;
+  return (
+    <Card>
+      <button onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-3.5 border-b border-[--dark-line] text-left hover:bg-white/[0.02] transition-colors">
+        <span className="flex items-center gap-2">
+          <span className={`font-mono2 text-[10px] text-[--dark-muted] transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden>▶</span>
+          <span className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Run history</span>
+        </span>
+        <span className="font-mono2 text-[10px] text-[--dark-muted]">
+          {runs.length} run{runs.length === 1 ? '' : 's'}{failed > 0 && <span className="text-[#F07A6A]"> · {failed} failed</span>}
+        </span>
+      </button>
+      {open && (
+        <div className="overflow-x-auto max-h-80 overflow-y-auto">
+          <table className="w-full text-left min-w-[640px]">
+            <thead className="sticky top-0 bg-[--dark-card]">
+              <tr className="border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                <th className="px-5 py-2.5 font-medium">Run</th>
+                <th className="px-5 py-2.5 font-medium">Host</th>
+                <th className="px-5 py-2.5 font-medium">Started</th>
+                <th className="px-5 py-2.5 font-medium">Duration</th>
+                <th className="px-5 py-2.5 font-medium">Result</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[--dark-line]">
+              {runs.map((r) => (
+                <tr key={r.requestId} className="font-mono2 text-xs">
+                  <td className="px-5 py-2.5"><span className="text-white">{r.vmId ?? r.requestId.slice(0, 12)}</span></td>
+                  <td className="px-5 py-2.5 text-[--dark-muted]">{r.hostName ?? '—'}{r.region ? ` · ${r.region}` : ''}</td>
+                  <td className="px-5 py-2.5 text-[--dark-muted]">{fmtAgo(r.requestedAt)}</td>
+                  <td className="px-5 py-2.5 text-[--dark-muted]">{fmtDuration(r.durationSeconds)}</td>
+                  <td className="px-5 py-2.5">
+                    {r.status === 'failed'
+                      ? <span className="text-[#F07A6A]" title={r.error ?? undefined}>failed</span>
+                      : <span className="text-[--dark-muted]">released</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -8,5 +8,8 @@
   <url><loc>https://devplat.ch/docs</loc><priority>0.7</priority></url>
   <url><loc>https://devplat.ch/status</loc><priority>0.5</priority></url>
   <url><loc>https://devplat.ch/legal</loc><priority>0.3</priority></url>
+  <url><loc>https://devplat.ch/legal/imprint</loc><priority>0.2</priority></url>
+  <url><loc>https://devplat.ch/legal/terms</loc><priority>0.2</priority></url>
+  <url><loc>https://devplat.ch/legal/privacy</loc><priority>0.2</priority></url>
   <url><loc>https://devplat.ch/contact</loc><priority>0.4</priority></url>
 </urlset>

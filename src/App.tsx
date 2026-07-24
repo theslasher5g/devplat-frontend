@@ -58,7 +58,14 @@ const PAGE_META: Partial<Record<Page, { title: string; description: string }>> =
   docs: { title: 'Docs — devplat', description: 'Install, authenticate, connect, and run your tests against a remote Testcontainers backend. CLI reference, CI setup, and troubleshooting.' },
   compliance: { title: 'Privacy & Legal — devplat', description: 'GDPR and Swiss FADP compliance, a downloadable DPA, and data processed exclusively on our own hardware in Basel, Switzerland.' },
   contact: { title: 'Contact — devplat', description: 'Get in touch with the devplat team.' },
+  imprint: { title: 'Imprint — devplat', description: 'Legal disclosure and operator details for devplat, Basel, Switzerland.' },
+  terms: { title: 'Terms of Service — devplat', description: 'The terms governing use of devplat’s remote Testcontainers backend.' },
+  privacy: { title: 'Privacy Policy — devplat', description: 'How devplat processes personal data under GDPR and the Swiss FADP — on our own hardware in Basel.' },
 };
+
+// Absolute site origin used for canonical + og:url. The apex is canonical (www
+// is only accepted, not preferred), so every page points its canonical here.
+const SITE_ORIGIN = 'https://devplat.ch';
 
 function usePageMeta(page: Page) {
   useEffect(() => {
@@ -69,9 +76,14 @@ function usePageMeta(page: Page) {
       const el = document.head.querySelector<HTMLMetaElement>(selector);
       if (el) el.setAttribute(attr, value);
     };
+    const canonical = `${SITE_ORIGIN}${PAGE_PATHS[page]}`;
     set('meta[name="description"]', 'content', meta.description);
     set('meta[property="og:title"]', 'content', meta.title);
     set('meta[property="og:description"]', 'content', meta.description);
+    // Keep canonical + og:url in sync with the current route so shares and
+    // crawlers attribute each page to its own URL, not the static index one.
+    set('meta[property="og:url"]', 'content', canonical);
+    set('link[rel="canonical"]', 'href', canonical);
   }, [page]);
 }
 
