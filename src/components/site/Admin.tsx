@@ -645,13 +645,23 @@ export default function Admin() {
         {activity && <ActivityFeed activity={activity} />}
         {/* cache */}
         <Card>
-          <CardHead title="Image cache hit rate" />
+          <CardHead title="Image cache hit rate" right={
+            overview && overview.cacheReportingHosts === 0
+              ? <span className="font-mono2 text-[10px] text-[#E8B44C] border border-[#E8B44C]/40 px-2 py-0.5">No host reporting</span>
+              : overview
+                ? <span className="font-mono2 text-[10px] text-[--dark-muted]">{overview.cacheReportingHosts} host{overview.cacheReportingHosts === 1 ? '' : 's'} reporting</span>
+                : undefined
+          } />
           <div className="p-5">
             <p className="font-doto text-4xl">{overview?.cacheHitRate == null ? '—' : `${(overview.cacheHitRate * 100).toFixed(1)}%`}</p>
-            <p className="text-xs text-[--dark-muted] mt-1">
-              {overview?.cacheHitRate == null
-                ? 'Pooled hits ÷ lookups across hosts — shows once a host reports registry-cache stats.'
-                : 'Pooled across all hosts (cumulative hits ÷ lookups from each registry proxy).'}
+            <p className="text-xs text-[--dark-muted] mt-1 max-w-[70ch]">
+              {overview == null
+                ? 'Loading…'
+                : overview.cacheReportingHosts === 0
+                  ? 'No host is publishing registry-cache stats yet. On each host, deploy the registry cache with its debug endpoint (REGISTRY_HTTP_DEBUG_ADDR / port 127.0.0.1:5001) and run an agent build that scrapes it — see the host runbook, step E.'
+                  : overview.cacheLookups === 0
+                    ? `${overview.cacheReportingHosts} host(s) reporting, but no image has been pulled through the cache yet — the rate appears after the first pull.`
+                    : 'Pooled across all hosts (cumulative hits ÷ lookups from each registry proxy).'}
             </p>
           </div>
         </Card>

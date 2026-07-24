@@ -112,7 +112,8 @@ export interface AdminOverview {
   mrrByTier: { tier: PlanTier; label: string; count: number; chfEach: number; chfTotal: number }[];
   vmStarts7d: number; vmStartFailures7d: number; vmStartErrorRate7d: number | null;
   runningEnvironments: number; queuedEnvironments: number;
-  cacheHitRate: number | null; dataPlaneConnected: boolean;
+  cacheHitRate: number | null; cacheReportingHosts: number; cacheLookups: number;
+  dataPlaneConnected: boolean;
 }
 
 export interface AdminActivity {
