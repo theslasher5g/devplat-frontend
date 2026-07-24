@@ -1,9 +1,8 @@
 import { Eyebrow, type Page } from './Shared';
 
-// Community channels. Point these at your real invite URLs before launch —
-// they're the only external links on this page.
+// Community channel. Point this at your real repo before launch — it's the
+// only external link on this page.
 const COMMUNITY = {
-  discord: 'https://discord.gg/devplat',
   github: 'https://github.com/devplat/devplat/discussions',
 };
 
@@ -91,7 +90,7 @@ const groups: Group[] = [
       },
       {
         q: 'What support do I get?',
-        a: 'Solo plans get community support — this FAQ, the docs, and our Discord and GitHub Discussions, where the team is active. Team and Scale plans add priority email support with a response SLA.',
+        a: 'Solo plans get community support — this FAQ, the docs, and GitHub Discussions, where the team is active. Team and Scale plans add priority email support with a response SLA.',
       },
       {
         q: 'Can I change plans or cancel anytime?',
@@ -116,7 +115,7 @@ export default function Faq({ go }: { go: (p: Page) => void }) {
             the team and other developers are a message away.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href={COMMUNITY.discord} target="_blank" rel="noreferrer" className="btn-ink px-6 py-3">Join the Discord</a>
+            <a href={COMMUNITY.github} target="_blank" rel="noreferrer" className="btn-ink px-6 py-3">Ask on GitHub Discussions</a>
             <button onClick={() => go('docs')} className="btn-ghost px-6 py-3">Read the docs</button>
           </div>
         </div>
@@ -154,10 +153,10 @@ export default function Faq({ go }: { go: (p: Page) => void }) {
           <h2 className="text-3xl font-semibold tracking-tight max-w-[24ch]">Pick the channel that fits.</h2>
           <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
             {[
-              { t: 'Discord', d: 'Ask the team and other devs in real time.', href: COMMUNITY.discord, ext: true },
-              { t: 'GitHub Discussions', d: 'Longer questions, feature ideas, and answers you can search later.', href: COMMUNITY.github, ext: true },
+              { t: 'GitHub Discussions', d: 'Ask the team and other developers, share feature ideas, and search answers others already got.', href: COMMUNITY.github, ext: true },
               { t: 'Documentation', d: 'Install, connect, CI setup and troubleshooting.', page: 'docs' as Page },
-              { t: 'Email us', d: 'Account or billing questions the community can’t see.', href: 'mailto:hello@devplat.ch', ext: true },
+              { t: 'Status page', d: 'Live component status and incident history.', href: '/status', ext: false },
+              { t: 'Email us', d: 'Account or billing questions that don’t belong in public.', href: 'mailto:hello@devplat.ch', ext: true },
             ].map((c) => (
               <div key={c.t} className="border hairline p-6 lift accent-top flex flex-col">
                 <h3 className="font-semibold">{c.t}</h3>

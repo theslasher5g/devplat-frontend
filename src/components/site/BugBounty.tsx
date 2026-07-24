@@ -105,6 +105,48 @@ export default function BugBounty({ go }: { go: (p: Page) => void }) {
         </div>
       </section>
 
+      {/* RECOGNITION */}
+      <section className="border-b hairline">
+        <div className="mx-auto max-w-6xl px-5 py-16 grid gap-10 lg:grid-cols-[1fr_1.1fr] items-start">
+          <div>
+            <Eyebrow>Recognition</Eyebrow>
+            <h2 className="text-3xl font-semibold tracking-tight max-w-[22ch]">Swag and a permanent credit, on top of the credit to your account.</h2>
+            <p className="mt-4 text-sm text-[--ink-soft] max-w-[54ch]">
+              Every valid finding earns more than plan credit. We ship you swag and — if you want it —
+              put your name on the wall for good.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="border hairline bg-white p-6">
+              <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--ink]/70">The swag</p>
+              <ul className="mt-3 space-y-2 text-sm text-[--ink-soft]">
+                <li className="flex gap-2"><span className="text-[--red]">—</span>A devplat researcher sticker set</li>
+                <li className="flex gap-2"><span className="text-[--red]">—</span>A limited “Broke Basel” tee, only for people who actually did</li>
+                <li className="flex gap-2"><span className="text-[--red]">—</span>Shipped worldwide, on us</li>
+              </ul>
+            </div>
+            <div className="border hairline bg-[--ink] text-[--dark-text] p-6 dotgrid-dark">
+              <p className="font-mono2 text-[11px] uppercase tracking-widest" style={{ color: 'var(--dark-muted)' }}>The Hall of Fame</p>
+              <ul className="mt-3 space-y-2 text-sm text-[--dark-muted]">
+                <li className="flex gap-2"><span className="text-[--red]">—</span>Your name or handle, the class of issue, and the month</li>
+                <li className="flex gap-2"><span className="text-[--red]">—</span>A link back to your site, GitHub, or socials</li>
+                <li className="flex gap-2"><span className="text-[--red]">—</span>Opt-in, and permanent — first reporter of each issue</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        {/* the wall itself */}
+        <div className="mx-auto max-w-6xl px-5 pb-16">
+          <div className="border hairline bg-white p-8 text-center">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--ink-soft]">Hall of Fame</p>
+            <p className="mt-3 font-doto text-2xl">The wall is empty.<span className="text-[--red]">●</span></p>
+            <p className="mt-2 text-sm text-[--ink-soft] max-w-[46ch] mx-auto">
+              No valid reports yet — which means the first name here is still up for grabs. Make it yours.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* SCOPE */}
       <section className="border-b hairline bg-white">
         <div className="mx-auto max-w-6xl px-5 py-20 grid gap-12 lg:grid-cols-2">

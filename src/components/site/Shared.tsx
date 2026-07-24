@@ -259,9 +259,6 @@ export function Footer({ go }: { go: (p: Page) => void }) {
           <p className="mt-4 text-sm text-[--ink-soft]">
             Your tests, our containers. A remote Testcontainers backend on isolated microVMs — hosted on our own hardware in Basel, Switzerland.
           </p>
-          <div className="mt-5">
-            <button onClick={() => go('auth')} className="btn-ink px-5 py-2.5 text-sm">Start free — 14 days</button>
-          </div>
           <FooterStatus />
         </div>
 
