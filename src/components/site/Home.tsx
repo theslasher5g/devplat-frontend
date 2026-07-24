@@ -12,10 +12,11 @@ export default function Home({ go }: { go: (p: Page) => void }) {
               Your tests.<br />
               <span className="font-doto">Our</span> containers.
             </h1>
-            <p className="rise rise-3 mt-6 text-lg text-[--ink-soft] max-w-[46ch]">
-              Integration tests still run where they always did — laptop or CI. Only the throwaway
-              containers (Postgres, Redis, Kafka …) run on our infrastructure. No Docker daemon to
-              manage, no Docker Desktop subscription, no overage surprises.
+            <p className="rise rise-3 mt-6 text-lg text-[--ink-soft] max-w-[47ch]">
+              Your integration tests run where they always have — your laptop, your CI. What moves is
+              the throwaway containers they spin up: Postgres, Redis, Kafka and the rest now run on
+              our infrastructure instead of yours. Nothing to install locally, and a bill that doesn't
+              budge when your team pushes more.
             </p>
             <div className="rise rise-4 mt-8 flex flex-wrap gap-3">
               <button onClick={() => go('auth')} className="btn-ink px-6 py-3">Try it free — no credit card</button>
@@ -40,8 +41,8 @@ export default function Home({ go }: { go: (p: Page) => void }) {
             {[
               ['Slow pipelines', 'Every CI run pulls the same images again. A postgres:16 pull costs 20–30 seconds — per job, per day, per team.'],
               ['Resource limits', 'GitHub runners with 2 vCPU / 7 GB collapse the moment Kafka, Elasticsearch, and your app all need to run at once.'],
-              ['Opaque costs', 'Per-minute billing with overages turns your invoice into a guessing game. With us: a flat rate by parallelism. Full stop.'],
-              ['US-cloud lock-in', 'Schemas and fixtures leak real structure more often than anyone plans for. Compliance teams ask where that data runs — the answer is Basel.'],
+              ['Opaque costs', 'Per-minute billing with overages turns every invoice into a guessing game. We charge a flat rate for how much you run in parallel, and nothing else.'],
+              ['Where the data lives', 'Test fixtures leak real schemas more often than anyone plans for. When someone asks where that runs, "our own hardware in Basel" is a shorter answer than most.'],
             ].map(([t, d], i) => (
               <Reveal as="li" key={t} delay={i * 80} className="border-l-2 border-[--ink] pl-5">
                 <p className="font-medium text-[--ink]">{t}</p>
