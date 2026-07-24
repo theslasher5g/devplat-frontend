@@ -12,6 +12,7 @@ import Download from '@/components/site/Download';
 import Faq from '@/components/site/Faq';
 import Home from '@/components/site/Home';
 import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
+import PromoBanner from '@/components/site/PromoBanner';
 import { Preise } from '@/components/site/PreiseCompliance';
 import Security from '@/components/site/Security';
 import { Footer, Nav, type Page, ScrollProgress } from '@/components/site/Shared';
@@ -135,6 +136,7 @@ function MarketingLayout({ page, children }: { page: Page; children: React.React
   return (
     <div>
       <ScrollProgress />
+      <PromoBanner go={go} />
       <Nav page={page} go={go} />
       {children}
       <Footer go={go} />
