@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Activate from '@/components/site/Activate';
 import Admin from '@/components/site/Admin';
 import Auth, { InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
 import Contact from '@/components/site/Contact';
+import CookieNotice from '@/components/site/CookieNotice';
 import Dashboard from '@/components/site/Dashboard';
 import Docs from '@/components/site/Docs';
 import Download from '@/components/site/Download';
@@ -42,6 +43,36 @@ function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo({ top: 0 }); }, [pathname]);
   return null;
+}
+
+// Per-page <title> + meta description for SEO/social. This is a client-rendered
+// SPA, so this sets the tags on navigation (Google executes JS and picks them
+// up); the static defaults in index.html cover non-JS crawlers. Keyed to the
+// page the marketing router resolved.
+const PAGE_META: Partial<Record<Page, { title: string; description: string }>> = {
+  home: { title: 'devplat — Remote Testcontainers backend, hosted in Switzerland', description: 'Run integration-test containers on remote Firecracker microVMs — zero code changes, flat pricing by parallelism, hosted in Basel.' },
+  technik: { title: 'How it works — devplat', description: 'One tunnel, one scheduler, one microVM per test run. How devplat redirects the Docker endpoint so your tests run unchanged against remote containers.' },
+  security: { title: 'Security model — devplat', description: 'KVM isolation, per-VM networking, egress caps, WireGuard-only control plane, and a hard server-side TTL. The exact mechanisms behind each boundary.' },
+  preise: { title: 'Pricing — devplat', description: 'Flat pricing by parallelism, no per-minute bills, no overages. Plans from CHF 19 to CHF 249 per month. 14-day free trial, no card.' },
+  download: { title: 'Download the CLI — devplat', description: 'One static Go binary. Install on Linux, Windows, or CI in one line — then run your tests against remote containers.' },
+  docs: { title: 'Docs — devplat', description: 'Install, authenticate, connect, and run your tests against a remote Testcontainers backend. CLI reference, CI setup, and troubleshooting.' },
+  compliance: { title: 'Privacy & Legal — devplat', description: 'GDPR and Swiss FADP compliance, a downloadable DPA, and data processed exclusively on our own hardware in Basel, Switzerland.' },
+  contact: { title: 'Contact — devplat', description: 'Get in touch with the devplat team.' },
+};
+
+function usePageMeta(page: Page) {
+  useEffect(() => {
+    const meta = PAGE_META[page];
+    if (!meta) return;
+    document.title = meta.title;
+    const set = (selector: string, attr: string, value: string) => {
+      const el = document.head.querySelector<HTMLMetaElement>(selector);
+      if (el) el.setAttribute(attr, value);
+    };
+    set('meta[name="description"]', 'content', meta.description);
+    set('meta[property="og:title"]', 'content', meta.title);
+    set('meta[property="og:description"]', 'content', meta.description);
+  }, [page]);
 }
 
 /**
@@ -84,6 +115,7 @@ function useSectionReveals(enabled: boolean) {
 function MarketingLayout({ page, children }: { page: Page; children: React.ReactNode }) {
   const go = useGo();
   useSectionReveals(page !== 'home' && page !== 'docs');
+  usePageMeta(page);
   return (
     <div>
       <ScrollProgress />
@@ -91,6 +123,25 @@ function MarketingLayout({ page, children }: { page: Page; children: React.React
       {children}
       <Footer go={go} />
     </div>
+  );
+}
+
+function NotFound() {
+  const go = useGo();
+  return (
+    <MarketingLayout page="home">
+      <main className="min-h-[70vh] grid place-items-center dotgrid border-b hairline">
+        <div className="text-center px-5 py-24">
+          <p className="font-doto text-7xl md:text-8xl leading-none">404<span className="text-[--red]">●</span></p>
+          <p className="mt-4 eyebrow eyebrow-dot inline-block">Page not found</p>
+          <p className="mt-3 text-[--ink-soft] max-w-[42ch] mx-auto">That page doesn't exist — or was torn down like one of our microVMs. Let's get you back.</p>
+          <div className="mt-8 flex gap-3 justify-center flex-wrap">
+            <button onClick={() => go('home')} className="btn-ink px-6 py-3">Back home</button>
+            <button onClick={() => go('docs')} className="btn-ghost px-6 py-3">Read the docs</button>
+          </div>
+        </div>
+      </main>
+    </MarketingLayout>
   );
 }
 
@@ -139,8 +190,9 @@ export default function App() {
           <Route path="/app" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/app/:view" element={<RequireAuth><Dashboard /></RequireAuth>} />
           <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
+        <CookieNotice />
       </AuthProvider>
     </BrowserRouter>
   );

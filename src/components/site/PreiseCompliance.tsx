@@ -89,6 +89,56 @@ export function Preise({ go }: { go: (p: Page) => void }) {
         </div>
       </section>
 
+      {/* PLAN COMPARISON MATRIX */}
+      <section className="border-b hairline bg-white">
+        <div className="mx-auto max-w-6xl px-5 py-16">
+          <Eyebrow>Compare plans</Eyebrow>
+          <h2 className="text-3xl font-semibold tracking-tight">Everything, side by side.</h2>
+          <div className="mt-8 overflow-x-auto border hairline">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="border-b hairline">
+                  <th className="text-left p-4 font-medium eyebrow">Feature</th>
+                  {['Free', 'Solo', 'Team', 'Scale'].map((n) => (
+                    <th key={n} className={`text-left p-4 font-semibold ${n === 'Team' ? 'text-[--red]' : ''}`}>{n}{n === 'Team' && ' ●'}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="[&>tr]:border-b [&>tr]:hairline [&>tr:last-child]:border-0">
+                {([
+                  ['Price / month', ['CHF 0', 'CHF 19', 'CHF 79', 'CHF 249']],
+                  ['Parallel environments', ['1', '2', '5', '8']],
+                  ['vCPU per environment', ['1', '2', '4', '6']],
+                  ['RAM per environment', ['2 GB', '4 GB', '8 GB', '12 GB']],
+                  ['Image cache', [true, true, true, true]],
+                  ['Custom images in cache', [false, false, true, true]],
+                  ['Team management & roles', [false, false, true, true]],
+                  ['DPA included', [false, false, true, true]],
+                  ['Priority scheduling', [false, false, false, true]],
+                  ['Audit log', [false, false, false, true]],
+                  ['Support', ['—', 'Community', 'Email < 24 h', '< 4 h']],
+                ] as [string, (string | boolean)[]][]).map(([label, cells]) => (
+                  <tr key={label}>
+                    <td className="p-4 text-[--ink-soft]">{label}</td>
+                    {cells.map((c, i) => (
+                      <td key={i} className={`p-4 ${i === 2 ? 'bg-[--ink]/[0.02]' : ''}`}>
+                        {typeof c === 'boolean'
+                          ? (c ? <span className="text-[--green] font-semibold">✓</span> : <span className="text-[--line]">—</span>)
+                          : <span className="text-[--ink]">{c}</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button onClick={() => go('auth')} className="btn-ink px-6 py-3">Start free — 14 days</button>
+            <button onClick={() => go('contact')} className="btn-ghost px-6 py-3">Talk to us</button>
+          </div>
+        </div>
+      </section>
+
       {/* COMPARISON */}
       <section className="border-b hairline bg-white">
         <div className="mx-auto max-w-6xl px-5 py-20">

@@ -29,6 +29,36 @@ function Sparkline({ data }: { data: number[] }) {
   );
 }
 
+/** Prominent free-trial banner with a progress bar toward the trial's end.
+ *  Escalates from neutral → amber → red as the days run out. */
+function TrialBanner({ daysLeft, onUpgrade }: { daysLeft: number; onUpgrade: () => void }) {
+  const TRIAL_DAYS = 14;
+  const ended = daysLeft <= 0;
+  const used = Math.min(1, Math.max(0, (TRIAL_DAYS - daysLeft) / TRIAL_DAYS));
+  const color = ended || daysLeft <= 3 ? '#F07A6A' : daysLeft <= 7 ? '#E8B44C' : '#8AB8F0';
+  return (
+    <div className="mb-6 border border-[--dark-line] bg-[--dark-card] p-4" style={{ borderLeftColor: color, borderLeftWidth: 3 }}>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-sm font-medium">
+            {ended ? 'Your free trial has ended' : `Free trial — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
+          </p>
+          <p className="text-xs text-[--dark-muted] mt-0.5">
+            {ended ? 'Upgrade to run environments again — your data and settings are kept.' : 'Upgrade any time to keep running environments after the trial.'}
+          </p>
+        </div>
+        <button onClick={onUpgrade} className="font-mono2 text-[11px] uppercase tracking-widest border px-4 py-2 shrink-0"
+          style={{ borderColor: color, color }}>
+          {ended ? 'Upgrade now' : 'See plans'}
+        </button>
+      </div>
+      <div className="mt-3 h-1.5 bg-white/[0.08]">
+        <div className="h-full" style={{ width: `${used * 100}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
 /** Info panel shown across all dashboard views: active incidents, general
  *  announcements, and upcoming maintenance, pulled from the same /status feed
  *  the public page uses. Renders nothing when there's nothing to say. */
@@ -1233,6 +1263,7 @@ export default function Dashboard() {
           ))}
         </div>
         <main className="p-5 lg:p-8">
+          {trialDaysLeft !== null && <TrialBanner daysLeft={trialDaysLeft} onUpgrade={() => setView('billing')} />}
           <StatusBanner />
           <div key={view} className="view-in">
             {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}

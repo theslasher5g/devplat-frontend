@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /admin
+Disallow: /activate
+
+Sitemap: https://devplat.ch/sitemap.xml
