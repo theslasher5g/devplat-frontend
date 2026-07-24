@@ -579,6 +579,16 @@ export default function Admin() {
       .catch(() => setErr('Could not load admin data — platform-admin role required.'));
   }, []);
 
+  const toggleDrain = async (h: AdminHost) => {
+    const next = !h.drain;
+    setHosts((prev) => prev.map((x) => (x.id === h.id ? { ...x, drain: next } : x))); // optimistic
+    try {
+      await api(`/admin/hosts/${h.id}`, { method: 'PATCH', body: { drain: next } });
+    } catch {
+      setHosts((prev) => prev.map((x) => (x.id === h.id ? { ...x, drain: h.drain } : x))); // revert
+    }
+  };
+
   // Audit log lazy-loads the first time its tab is opened.
   useEffect(() => {
     if (view === 'audit' && audit === null) {
@@ -680,7 +690,7 @@ export default function Admin() {
               <div key={h.id} className="grid gap-4 sm:grid-cols-[160px_1fr_1fr_auto] items-center px-5 py-4">
                 <div>
                   <p className="text-sm font-medium font-mono2">{h.name}</p>
-                  <p className="font-mono2 text-[10px] text-[--dark-muted]">{h.location} · heartbeat {h.lastHeartbeat ? fmtDate(h.lastHeartbeat) : 'never'}</p>
+                  <p className="font-mono2 text-[10px] text-[--dark-muted]">{h.location} · {h.vms} VM{h.vms === 1 ? '' : 's'} · heartbeat {h.lastHeartbeat ? fmtDate(h.lastHeartbeat) : 'never'}</p>
                 </div>
                 <div>
                   <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">CPU</p>
@@ -691,9 +701,15 @@ export default function Admin() {
                   <UtilBar used={Math.round(h.ramMb.used / 1024)} total={Math.round(h.ramMb.total / 1024)} unit="GB" />
                 </div>
                 <div className="flex items-center gap-2 justify-self-end">
-                  <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${hostStatusStyle[h.status]}`}>
-                    {h.status === 'online' && <span className="pulse-dot mr-1">●</span>}{h.status}
-                  </span>
+                  {h.drain
+                    ? <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5" title="No new VMs; existing ones run out">draining</span>
+                    : <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${hostStatusStyle[h.status]}`}>
+                        {h.status === 'online' && <span className="pulse-dot mr-1">●</span>}{h.status}
+                      </span>}
+                  <button onClick={() => toggleDrain(h)} title={h.drain ? 'Resume taking new VMs' : 'Stop new VMs; let existing ones finish'}
+                    className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
+                    {h.drain ? 'Resume' : 'Drain'}
+                  </button>
                   <button onClick={() => setEditHost(h)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
                     Edit
                   </button>

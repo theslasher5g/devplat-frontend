@@ -127,6 +127,7 @@ export interface AdminTimeseries {
 
 export interface AdminHost {
   id: string; name: string; location: string; status: 'online' | 'draining' | 'offline';
+  drain: boolean; vms: number;
   lastHeartbeat: string | null;
   cpu: { total: number; used: number };
   ramMb: { total: number; used: number };
