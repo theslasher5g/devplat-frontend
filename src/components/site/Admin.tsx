@@ -773,14 +773,32 @@ function ActivityFeed({ activity }: { activity: AdminActivity }) {
 }
 
 type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'audit' | 'status';
-const ADMIN_NAV: { key: AdminView; label: string; icon: string }[] = [
-  { key: 'overview', label: 'Overview', icon: '▦' },
-  { key: 'teams', label: 'Teams', icon: '◉' },
-  { key: 'users', label: 'Users', icon: '☺' },
-  { key: 'hosts', label: 'Hosts', icon: '▤' },
-  { key: 'audit', label: 'Audit log', icon: '❈' },
-  { key: 'status', label: 'Status page', icon: '◈' },
+const ADMIN_NAV: { key: AdminView; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'teams', label: 'Teams' },
+  { key: 'users', label: 'Users' },
+  { key: 'hosts', label: 'Hosts' },
+  { key: 'audit', label: 'Audit log' },
+  { key: 'status', label: 'Status page' },
 ];
+
+// Consistent line icons for the admin tabs — same 24-grid / 1.6-stroke set as
+// the dashboard sidebar, replacing the earlier mixed glyphs (incl. a smiley).
+function AdminIcon({ name }: { name: AdminView }) {
+  const p: Record<AdminView, React.ReactNode> = {
+    overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+    teams: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17 13.5a5.5 5.5 0 0 1 3.5 5.5" /></>,
+    users: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></>,
+    hosts: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+    audit: <><path d="M8 4h9l3 3v13H8z" /><path d="M4 8v12h12" /><path d="M11 11h6M11 15h6" /></>,
+    status: <><path d="M3 12h4l2 5 4-12 2 7h6" /></>,
+  };
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {p[name]}
+    </svg>
+  );
+}
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -864,7 +882,7 @@ export default function Admin() {
           {ADMIN_NAV.map((i) => (
             <button key={i.key} onClick={() => setView(i.key)}
               className={`shrink-0 flex items-center gap-2 px-4 py-3 text-sm border-b-2 transition-colors ${view === i.key ? 'text-white border-[--red]' : 'text-[--dark-muted] border-transparent hover:text-white'}`}>
-              <span aria-hidden>{i.icon}</span>{i.label}
+              <AdminIcon name={i.key} />{i.label}
             </button>
           ))}
         </div>

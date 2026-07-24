@@ -1221,6 +1221,27 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
 
 /* ---------- Shell ---------- */
 
+// Clean, consistent line icons for the sidebar — replaces the earlier grab-bag
+// of unicode glyphs, which read as decorative rather than enterprise. All share
+// one 24-grid, 1.6 stroke, currentColor so they inherit the nav's active/muted
+// states.
+function NavIcon({ name }: { name: View | 'admin' }) {
+  const p: Record<View | 'admin', React.ReactNode> = {
+    overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+    pipelines: <><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="12" r="2.5" /><path d="M6 8.5v7M8.3 6.7l7.6 4.2M8.3 17.3l7.6-4.2" /></>,
+    tokens: <><circle cx="8" cy="8" r="4" /><path d="M11 11l7 7M15 15l2-2M17 17l2-2" /></>,
+    billing: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18" /></>,
+    team: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17 13.5a5.5 5.5 0 0 1 3.5 5.5" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></>,
+    admin: <><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M9.5 12l1.8 1.8L15 10" /></>,
+  };
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {p[name]}
+    </svg>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { view: viewParam } = useParams<{ view: string }>();
@@ -1236,13 +1257,13 @@ export default function Dashboard() {
   const setView = (v: View) => navigate(v === 'overview' ? '/app' : `/app/${v}`);
   const signOut = async () => { await logout(); navigate('/'); };
 
-  const items: { key: View; label: string; icon: string }[] = [
-    { key: 'overview', label: 'Environments', icon: '▦' },
-    { key: 'pipelines', label: 'CI pipelines', icon: '⛓' },
-    { key: 'tokens', label: 'API tokens', icon: '⌘' },
-    { key: 'billing', label: 'Usage & billing', icon: '▤' },
-    { key: 'team', label: 'Team', icon: '◉' },
-    { key: 'settings', label: 'Settings', icon: '⚙' },
+  const items: { key: View; label: string }[] = [
+    { key: 'overview', label: 'Environments' },
+    { key: 'pipelines', label: 'CI pipelines' },
+    { key: 'tokens', label: 'API tokens' },
+    { key: 'billing', label: 'Usage & billing' },
+    { key: 'team', label: 'Team' },
+    { key: 'settings', label: 'Settings' },
   ];
   const titles: Record<View, string> = {
     overview: 'Environments', pipelines: 'CI pipelines',
@@ -1288,13 +1309,13 @@ export default function Dashboard() {
           {items.map((i) => (
             <button key={i.key} onClick={() => setView(i.key)}
               className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${view === i.key ? 'text-white bg-white/[0.05] border-r-2 border-[--red]' : 'text-[--dark-muted] hover:text-white'}`}>
-              <span className="w-4 text-center">{i.icon}</span>{i.label}
+              <span className="w-4 grid place-items-center"><NavIcon name={i.key} /></span>{i.label}
             </button>
           ))}
           {me?.user.isPlatformAdmin && (
             <button onClick={() => navigate('/admin')}
               className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[--dark-muted] hover:text-white transition-colors">
-              <span className="w-4 text-center">◆</span>Admin
+              <span className="w-4 grid place-items-center"><NavIcon name="admin" /></span>Admin
             </button>
           )}
         </nav>
