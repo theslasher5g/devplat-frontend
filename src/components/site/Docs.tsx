@@ -181,6 +181,35 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
               while you're connected, so Testcontainers' mapped-port access works unchanged. TCP
               only; a locally-taken port is skipped with a warning.
             </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Inside the session</p>
+            <p className="text-sm text-[--ink-soft]">
+              The session is a real shell with a live view around it: a container panel showing what's
+              running and each container's mirrored <span className="font-mono2 text-[13px]">localhost:PORT</span>,
+              the environment's resources and TTL, and platform status. A few keys:
+            </p>
+            <div className="border hairline mt-3 text-sm">
+              {[
+                ['↑ / ↓', 'Walk your command history (per project).'],
+                ['Tab', 'Autocomplete from history, saved commands, and common test commands.'],
+                ['⇧ Tab', 'Move focus between the input and the container panel.'],
+                ['^l', 'Live-follow a selected container’s logs (like docker logs -f).'],
+                ['^y', 'Copy a container’s mirrored localhost port.'],
+                ['^r / ^s', 'Open the command picker · star the current command.'],
+                ['exit', 'Leave and release the environment (Ctrl+C/Ctrl+D also work).'],
+              ].map(([k, d]) => (
+                <div key={k} className="flex gap-4 px-4 py-2 border-b hairline last:border-b-0">
+                  <span className="font-mono2 text-[13px] text-[--ink] min-w-[5rem]">{k}</span>
+                  <span className="text-[--ink-soft]">{d}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-[--ink-soft] mt-3">
+              One caveat: a <span className="font-mono2 text-[13px]">docker-compose</span> host bind
+              mount (<span className="font-mono2 text-[13px]">./data:/x</span>) points at the remote
+              VM, not your machine — the session warns you once if it spots one. Use named volumes or
+              copy fixtures in instead.
+            </p>
           </section>
 
           {/* CI */}
