@@ -283,6 +283,16 @@ function UsageChart({ series }: { series: UsageTimeseries }) {
   const max = Math.max(1, ...days.map((d) => d.starts + d.failures));
   const total = days.reduce((s, d) => s + d.starts, 0);
   const failed = days.reduce((s, d) => s + d.failures, 0);
+  // Forecast: extrapolate the trailing-7-day pace to a monthly run rate, so a
+  // team can see where usage is trending rather than only what already ran.
+  // Uses the last 7 days (or the whole window if shorter) as the recent rate.
+  const recent = days.slice(-7);
+  const recentDays = recent.length || 1;
+  const recentStarts = recent.reduce((s, d) => s + d.starts, 0);
+  const perDay = recentStarts / recentDays;
+  const perWeek = Math.round(perDay * 7);
+  const perMonth = Math.round(perDay * 30);
+  const forecast = total > 0 ? { perWeek, perMonth } : null;
   return (
     <Card>
       <CardHead title={`Your usage · ${days.length}d`} right={
@@ -309,6 +319,16 @@ function UsageChart({ series }: { series: UsageTimeseries }) {
             <div className="flex justify-between font-mono2 text-[9px] text-[--dark-muted] mt-1.5">
               <span>{days[0]?.date.slice(5)}</span><span>today</span>
             </div>
+            {forecast && (
+              <div className="mt-3 pt-3 border-t border-[--dark-line] flex items-center justify-between gap-3">
+                <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Projected pace</p>
+                <p className="font-mono2 text-[11px] text-[--dark-text]">
+                  ≈ {forecast.perWeek}<span className="text-[--dark-muted]">/wk</span>
+                  <span className="text-[--dark-muted] mx-1.5">·</span>
+                  ≈ {forecast.perMonth}<span className="text-[--dark-muted]">/mo</span>
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -347,8 +367,13 @@ function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose:
     ['Host', `${detail.hostName ?? '—'}${detail.region ? ` · ${detail.region}` : ''}`],
     ['Resources', detail.vcpu ? `${detail.vcpu} vCPU · ${Math.round((detail.ramMb ?? 0) / 1024)} GB` : '—'],
     ['TTL', fmtTtl(detail.expiresAt)],
-    ['Docker endpoint', detail.dockerEndpoint ?? '—'],
   ] : [];
+
+  // The Docker endpoint is what a caller points their local Docker/Testcontainers
+  // client at, so offer it as a ready-to-paste `export DOCKER_HOST=…` line rather
+  // than a bare host:port the user has to reshape by hand.
+  const dockerHost = detail?.dockerEndpoint ? `tcp://${detail.dockerEndpoint}` : null;
+  const dockerHostExport = dockerHost ? `export DOCKER_HOST=${dockerHost}` : null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -370,6 +395,17 @@ function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose:
             </div>
           )) : <Skeleton className="h-24 w-full" />}
         </div>
+
+        {dockerHostExport && (
+          <div className="px-5 pb-5">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted] mb-2">Connect a local Docker client</p>
+            <div className="border border-[--dark-line] bg-black/20 p-3 flex items-center gap-2">
+              <code className="font-mono2 text-[11px] text-[#8AB8F0] break-all flex-1">{dockerHostExport}</code>
+              <CopyButton value={dockerHostExport} className="shrink-0" />
+            </div>
+            <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1.5">Point Testcontainers or the Docker CLI straight at this microVM.</p>
+          </div>
+        )}
 
         <div className="px-5 pb-6">
           <div className="flex items-center justify-between mb-3">
