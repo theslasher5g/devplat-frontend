@@ -168,8 +168,10 @@ body {
 .flow-node { transition: transform .45s cubic-bezier(.2,.7,.3,1), border-color .3s ease; transform: scale(.6); }
 .data-flow.is-visible .flow-node { transform: scale(1); }
 
-/* Track for the travelling packet, laid over the per-step connector lines. */
-.flow-track { position: absolute; left: 16px; top: 8px; bottom: 28px; width: 1px; }
+/* Track for the travelling packet, laid over the per-step connector lines.
+   --flow-end is measured in DataFlow so the packet stops at the ✕ node's
+   centre; the fallback keeps it near the bottom before measurement lands. */
+.flow-track { position: absolute; left: 16px; top: 8px; height: var(--flow-end, calc(100% - 36px)); width: 1px; }
 .flow-packet {
   position: absolute; left: -2px; top: 0; width: 5px; height: 5px; border-radius: 999px;
   background: var(--red); box-shadow: 0 0 8px 1px rgba(230,51,18,.7); opacity: 0;

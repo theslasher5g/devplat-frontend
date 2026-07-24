@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import GithubComparisonSection from './GithubComparisonSection';
 import { Eyebrow, type Page, useInView } from './Shared';
 
@@ -16,6 +16,23 @@ const flowSteps: [string, string, string][] = [
  *  list under prefers-reduced-motion (handled in CSS). */
 function DataFlow() {
   const [ref, seen] = useInView<HTMLOListElement>();
+  const endRef = useRef<HTMLLIElement | null>(null);
+
+  // End the travelling packet at the destroy (✕) node's centre instead of
+  // running past it into the caption below. The caption height changes with
+  // viewport width, so this is measured rather than a fixed offset: the rail
+  // starts at 8px and the ✕ node's centre is its li's top offset + half the
+  // 32px node. Re-measured on resize.
+  useEffect(() => {
+    const ol = ref.current;
+    const end = endRef.current;
+    if (!ol || !end) return;
+    const measure = () => ol.style.setProperty('--flow-end', `${end.offsetTop + 16 - 8}px`);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [ref, seen]);
+
   return (
     <ol ref={ref} className={`data-flow relative max-w-3xl ${seen ? 'is-visible' : ''}`}>
       <span className="flow-track" aria-hidden><span className="flow-packet" /></span>
@@ -28,7 +45,7 @@ function DataFlow() {
           {edge && <p className="mt-3 font-mono2 text-[11px] text-[--red]"><span className="edge-arrow">↓</span> {edge}</p>}
         </li>
       ))}
-      <li className="flow-step relative pl-12" style={{ transitionDelay: `${flowSteps.length * 110}ms` }}>
+      <li ref={endRef} className="flow-step relative pl-12" style={{ transitionDelay: `${flowSteps.length * 110}ms` }}>
         <span className="flow-node absolute left-0 top-0 w-8 h-8 grid place-items-center border border-[--red] text-[--red] font-doto text-sm">✕</span>
         <p className="font-mono2 text-sm text-[--red] pt-1.5">destroyed</p>
         <p className="mt-1.5 text-sm text-[--ink-soft] max-w-[58ch]">
