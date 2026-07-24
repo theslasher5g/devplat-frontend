@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  api, type AdminActivity, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam,
-  type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier, type PostType,
-  type StatusLevel, type StatusPost,
+  api, type AdminActivity, type AdminHost, type AdminHostDetail, type AdminOverview, type AdminStatusComponent,
+  type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
+  type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuditList, Logo } from './Shared';
@@ -112,6 +112,105 @@ function EditHostModal({ host, onCancel, onSaved }: { host: AdminHost; onCancel:
             {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Read-only drill-down for one host: capacity, the environments currently
+ *  placed on it, and the most recent failed starts that named it. */
+function HostDetailModal({ host, onCancel }: { host: AdminHost; onCancel: () => void }) {
+  const [detail, setDetail] = useState<AdminHostDetail | null>(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    api<AdminHostDetail>(`/admin/hosts/${host.id}/detail`)
+      .then((d) => { if (alive) setDetail(d); })
+      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : 'Could not load host.'); });
+    return () => { alive = false; };
+  }, [host.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-start justify-center px-4 py-10 overflow-y-auto" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--dark-line] max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between px-6 py-4 border-b border-[--dark-line]">
+          <div>
+            <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Host detail</p>
+            <h3 className="mt-1 font-semibold text-lg font-mono2">{host.name}</h3>
+          </div>
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white">Close</button>
+        </div>
+
+        {err && <p className="px-6 py-5 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        {!detail && !err && <p className="px-6 py-5 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+
+        {detail && (
+          <div className="p-6 grid gap-6">
+            {/* status + capacity */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="border border-[--dark-line] p-4">
+                <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Status</p>
+                <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${hostStatusStyle[detail.host.status]}`}>{detail.host.status}</span>
+                {detail.host.drain && <span className="ml-2 font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5">draining</span>}
+                <p className="mt-2 font-mono2 text-[10px] text-[--dark-muted]">{detail.host.location}</p>
+                <p className="mt-1 font-mono2 text-[10px] text-[--dark-muted]">Heartbeat {detail.host.lastHeartbeat ? fmtDateTime(detail.host.lastHeartbeat) : 'never'}</p>
+                {detail.host.offlineAlertedAt && (
+                  <p className="mt-1 font-mono2 text-[10px] text-[#F07A6A]">Offline alert sent {fmtDateTime(detail.host.offlineAlertedAt)}</p>
+                )}
+              </div>
+              <div className="border border-[--dark-line] p-4 grid gap-3">
+                <div>
+                  <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">CPU</p>
+                  <UtilBar used={detail.host.cpu.used} total={detail.host.cpu.total} unit="vCPU" />
+                </div>
+                <div>
+                  <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">RAM</p>
+                  <UtilBar used={Math.round(detail.host.ramMb.used / 1024)} total={Math.round(detail.host.ramMb.total / 1024)} unit="GB" />
+                </div>
+                <p className="font-mono2 text-[10px] text-[--dark-muted]">
+                  Cache hit rate: {detail.host.cacheHitRate == null ? '—' : `${(detail.host.cacheHitRate * 100).toFixed(1)}%`}
+                </p>
+              </div>
+            </div>
+
+            {/* environments on this host */}
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Environments placed here ({detail.environments.length})</p>
+              <div className="border border-[--dark-line] divide-y divide-[--dark-line]">
+                {detail.environments.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="min-w-0">
+                      <span className="text-sm">{e.teamName}</span>
+                      <span className="ml-2 font-mono2 text-[10px] text-[--dark-muted]">{e.vmId ?? e.id.slice(0, 8)}</span>
+                    </span>
+                    <span className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">
+                      {e.vcpu ? `${e.vcpu} vCPU · ${Math.round((e.ramMb ?? 0) / 1024)} GB` : '—'}
+                    </span>
+                  </div>
+                ))}
+                {detail.environments.length === 0 && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">No environments running here.</p>}
+              </div>
+            </div>
+
+            {/* recent failures on this host */}
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Recent failed starts</p>
+              <div className="border border-[--dark-line] divide-y divide-[--dark-line]">
+                {detail.recentFailures.map((f) => (
+                  <div key={f.id} className="px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm">{f.teamName}</span>
+                      <span className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">{fmtDateTime(f.occurredAt)} · {f.attempts} attempt{f.attempts === 1 ? '' : 's'}</span>
+                    </div>
+                    <p className="mt-0.5 font-mono2 text-[10px] text-[#F07A6A] break-words">{f.error ?? 'unknown error'}</p>
+                  </div>
+                ))}
+                {detail.recentFailures.length === 0 && <p className="px-4 py-3 font-mono2 text-xs text-[#57C99A]">No failed starts on this host. ✓</p>}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -701,6 +800,7 @@ export default function Admin() {
   const [overrideTarget, setOverrideTarget] = useState<AdminTeam | null>(null);
   const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
   const [editHost, setEditHost] = useState<AdminHost | null>(null);
+  const [detailHost, setDetailHost] = useState<AdminHost | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -845,6 +945,9 @@ export default function Admin() {
                   <button onClick={() => toggleDrain(h)} title={h.drain ? 'Resume taking new VMs' : 'Stop new VMs; let existing ones finish'}
                     className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
                     {h.drain ? 'Resume' : 'Drain'}
+                  </button>
+                  <button onClick={() => setDetailHost(h)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
+                    View
                   </button>
                   <button onClick={() => setEditHost(h)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
                     Edit
@@ -1029,6 +1132,10 @@ export default function Admin() {
             setDeleteUser(null);
           }}
         />
+      )}
+
+      {detailHost && (
+        <HostDetailModal host={detailHost} onCancel={() => setDetailHost(null)} />
       )}
 
       {editHost && (

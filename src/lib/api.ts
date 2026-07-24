@@ -145,6 +145,21 @@ export interface AdminHost {
   ramMb: { total: number; used: number };
 }
 
+export interface AdminHostDetail {
+  host: {
+    id: string; name: string; location: string; status: 'online' | 'draining' | 'offline';
+    drain: boolean; lastHeartbeat: string | null; offlineAlertedAt: string | null;
+    cpu: { total: number; used: number };
+    ramMb: { total: number; used: number };
+    cacheHitRate: number | null;
+  };
+  environments: {
+    id: string; teamName: string; vmId: string | null; status: string;
+    assignedAt: string | null; vcpu: number | null; ramMb: number | null;
+  }[];
+  recentFailures: { id: string; teamName: string; error: string | null; attempts: number; occurredAt: string }[];
+}
+
 export type PlanTier = 'free' | 'solo' | 'team' | 'scale';
 
 export interface AdminTeam {
