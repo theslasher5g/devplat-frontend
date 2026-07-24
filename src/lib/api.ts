@@ -118,7 +118,19 @@ export interface AdminOverview {
 
 export interface AdminActivity {
   recentSignups: { id: string; name: string; planLabel: string; ownerEmail: string | null; ownerVerified: boolean; createdAt: string }[];
-  recentFailures: { id: string; teamName: string; vmId: string | null; occurredAt: string }[];
+  recentFailures: { id: string; teamName: string; error: string | null; hostName: string | null; attempts: number; occurredAt: string }[];
+}
+
+export interface AdminTeamDetail {
+  team: {
+    id: string; name: string; planTier: PlanTier; planLabel: string;
+    planOverride: PlanTier | null; planOverrideLabel: string | null;
+    trialEndsAt: string; createdAt: string; subscriptionStatus: string | null; currentPeriodEnd: string | null;
+  };
+  members: { email: string; role: string; verified: boolean; joinedAt: string }[];
+  tokens: { label: string; prefix: string; scope: string; lastUsedAt: string | null; revoked: boolean }[];
+  runs: { id: string; status: string; vmId: string | null; error: string | null; requestedAt: string; hostName: string | null }[];
+  audit: AuditEntry[];
 }
 
 export interface AdminTimeseries {

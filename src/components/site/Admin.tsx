@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   api, type AdminActivity, type AdminHost, type AdminOverview, type AdminStatusComponent, type AdminTeam,
-  type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier, type PostType, type StatusLevel, type StatusPost,
+  type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier, type PostType,
+  type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuditList, Logo } from './Shared';
@@ -424,6 +425,134 @@ function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-CH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+const runStatusColor: Record<string, string> = {
+  assigned: 'text-[#57C99A]',
+  queued: 'text-[#E8B44C]',
+  released: 'text-[--dark-muted]',
+  failed: 'text-[#F07A6A]',
+};
+
+/** Full read-only drill-down for one team: billing/override, members, tokens,
+ *  recent runs, and the team's audit trail. Fetched lazily on open. */
+function TeamDetailModal({ team, onCancel }: { team: AdminTeam; onCancel: () => void }) {
+  const [detail, setDetail] = useState<AdminTeamDetail | null>(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    api<AdminTeamDetail>(`/admin/teams/${team.id}/detail`)
+      .then((d) => { if (alive) setDetail(d); })
+      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : 'Could not load team.'); });
+    return () => { alive = false; };
+  }, [team.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-start justify-center px-4 py-10 overflow-y-auto" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--dark-line] max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between px-6 py-4 border-b border-[--dark-line]">
+          <div>
+            <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Team detail</p>
+            <h3 className="mt-1 font-semibold text-lg">{team.name}</h3>
+          </div>
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white">Close</button>
+        </div>
+
+        {err && <p className="px-6 py-5 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        {!detail && !err && <p className="px-6 py-5 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+
+        {detail && (
+          <div className="p-6 grid gap-6">
+            {/* summary */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="border border-[--dark-line] p-4">
+                <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Billing plan</p>
+                <p className="mt-1.5 text-sm">{detail.team.planLabel}
+                  {detail.team.planOverride && (
+                    <span className="ml-2 font-mono2 text-[10px] uppercase tracking-wider border border-[#8AB8F0]/50 text-[#8AB8F0] px-2 py-0.5" title="Manual entitlement grant — no billing effect">
+                      override: {detail.team.planOverrideLabel} ✦
+                    </span>
+                  )}
+                </p>
+                <p className="mt-1 font-mono2 text-[10px] text-[--dark-muted]">
+                  {detail.team.subscriptionStatus ?? 'no subscription'}
+                  {detail.team.currentPeriodEnd && ` · renews ${fmtDate(detail.team.currentPeriodEnd)}`}
+                </p>
+              </div>
+              <div className="border border-[--dark-line] p-4">
+                <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Lifecycle</p>
+                <p className="mt-1.5 font-mono2 text-xs text-[--dark-muted]">Created {fmtDate(detail.team.createdAt)}</p>
+                <p className="mt-1 font-mono2 text-xs text-[--dark-muted]">Trial ends {fmtDate(detail.team.trialEndsAt)}</p>
+              </div>
+            </div>
+
+            {/* members */}
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Members ({detail.members.length})</p>
+              <div className="border border-[--dark-line] divide-y divide-[--dark-line]">
+                {detail.members.map((m) => (
+                  <div key={m.email} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="text-sm break-all">{m.email}</span>
+                    <span className="flex items-center gap-3 shrink-0">
+                      <span className="font-mono2 text-[10px] text-[--dark-muted]">{m.role}</span>
+                      <span className={`font-mono2 text-[10px] ${m.verified ? 'text-[#57C99A]' : 'text-[#E8B44C]'}`}>{m.verified ? 'verified' : 'pending'}</span>
+                    </span>
+                  </div>
+                ))}
+                {detail.members.length === 0 && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">No members.</p>}
+              </div>
+            </div>
+
+            {/* tokens */}
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">API tokens ({detail.tokens.length})</p>
+              <div className="border border-[--dark-line] divide-y divide-[--dark-line]">
+                {detail.tokens.map((k) => (
+                  <div key={k.prefix} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="min-w-0">
+                      <span className="text-sm">{k.label}</span>
+                      <span className="ml-2 font-mono2 text-[10px] text-[--dark-muted]">{k.prefix}… · {k.scope}</span>
+                    </span>
+                    <span className="font-mono2 text-[10px] shrink-0 text-[--dark-muted]">
+                      {k.revoked ? <span className="text-[#F07A6A]">revoked</span> : `last used ${k.lastUsedAt ? fmtDate(k.lastUsedAt) : 'never'}`}
+                    </span>
+                  </div>
+                ))}
+                {detail.tokens.length === 0 && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">No tokens.</p>}
+              </div>
+            </div>
+
+            {/* recent runs */}
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Recent runs</p>
+              <div className="border border-[--dark-line] divide-y divide-[--dark-line]">
+                {detail.runs.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="min-w-0">
+                      <span className={`font-mono2 text-[10px] uppercase tracking-wider ${runStatusColor[r.status] ?? 'text-[--dark-muted]'}`}>{r.status}</span>
+                      <span className="ml-2 font-mono2 text-[10px] text-[--dark-muted]">{r.hostName ?? 'no host'}</span>
+                      {r.error && <span className="ml-2 font-mono2 text-[10px] text-[#F07A6A] break-words">{r.error}</span>}
+                    </span>
+                    <span className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">{fmtDateTime(r.requestedAt)}</span>
+                  </div>
+                ))}
+                {detail.runs.length === 0 && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">No runs yet.</p>}
+              </div>
+            </div>
+
+            {/* audit */}
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Audit trail</p>
+              {detail.audit.length === 0
+                ? <p className="border border-[--dark-line] px-4 py-3 font-mono2 text-xs text-[--dark-muted]">No audit entries.</p>
+                : <AuditList entries={detail.audit} />}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** MRR split by tier as labelled proportion bars. */
 function MrrByTier({ overview }: { overview: AdminOverview }) {
   const rows = overview.mrrByTier;
@@ -524,12 +653,18 @@ function ActivityFeed({ activity }: { activity: AdminActivity }) {
         <div className="divide-y divide-[--dark-line]">
           {activity.recentFailures.length === 0 && <p className="px-5 py-4 font-mono2 text-xs text-[#57C99A]">No failed starts. ✓</p>}
           {activity.recentFailures.map((f) => (
-            <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
+            <div key={f.id} className="px-5 py-3">
+              <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-medium truncate">{f.teamName}</p>
-                <p className="font-mono2 text-[10px] text-[--dark-muted] truncate">{f.vmId ?? 'no VM id'}</p>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">{fmtDateTime(f.occurredAt)}</p>
               </div>
-              <p className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">{fmtDateTime(f.occurredAt)}</p>
+              {/* drill-down: the actual reason the scheduler gave up, plus where
+                  and after how many attempts — so a failure is diagnosable from
+                  the dashboard without grepping logs. */}
+              <p className="mt-1 font-mono2 text-[11px] text-[#F07A6A] break-words">{f.error ?? 'unknown error'}</p>
+              <p className="mt-0.5 font-mono2 text-[10px] text-[--dark-muted]">
+                {f.hostName ? `host ${f.hostName}` : 'no host assigned'} · {f.attempts} attempt{f.attempts === 1 ? '' : 's'}
+              </p>
             </div>
           ))}
         </div>
@@ -562,6 +697,7 @@ export default function Admin() {
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminTeam | null>(null);
+  const [detailTarget, setDetailTarget] = useState<AdminTeam | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<AdminTeam | null>(null);
   const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
   const [editHost, setEditHost] = useState<AdminHost | null>(null);
@@ -757,7 +893,7 @@ export default function Admin() {
                   <tr key={t.id} className="text-sm">
                     <td className="px-5 py-3 font-medium">
                       <span className="flex items-center gap-2">
-                        {t.name}
+                        <button onClick={() => setDetailTarget(t)} className="hover:text-[--red] hover:underline underline-offset-2 text-left" title="View team detail">{t.name}</button>
                         {!t.ownerVerified && (
                           <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-1.5 py-0.5" title="Owner has not confirmed their email — this team may never become active">Unverified</span>
                         )}
@@ -778,6 +914,8 @@ export default function Admin() {
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{fmtDate(t.currentPeriodEnd)}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => setDetailTarget(t)}
+                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">View</button>
                         <button onClick={() => setOverrideTarget(t)}
                           className="font-mono2 text-[10px] uppercase tracking-wider text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">Plan</button>
                         <button onClick={() => setDeleteTarget(t)}
@@ -861,6 +999,10 @@ export default function Admin() {
           onCancel={() => setDeleteTarget(null)}
           onDeleted={(id) => { setTeams((prev) => prev.filter((t) => t.id !== id)); setDeleteTarget(null); }}
         />
+      )}
+
+      {detailTarget && (
+        <TeamDetailModal team={detailTarget} onCancel={() => setDetailTarget(null)} />
       )}
 
       {overrideTarget && (
