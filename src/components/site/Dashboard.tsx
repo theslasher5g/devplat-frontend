@@ -1017,6 +1017,8 @@ function Billing() {
 
 /* ---------- Team: real data ---------- */
 
+type TeamMember = TeamInfo['members'][number];
+
 function Team() {
   const [info, setInfo] = useState<TeamInfo | null>(null);
   const [audit, setAudit] = useState<AuditEntry[] | null>(null);
@@ -1025,6 +1027,13 @@ function Team() {
   const [inviting, setInviting] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
+  const [transferTo, setTransferTo] = useState<TeamMember | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { me, refresh } = useAuth();
+  const navigate = useNavigate();
+  const myUserId = me?.user.id;
 
   const load = useCallback(() => {
     api<TeamInfo>('/teams/me').then(setInfo).catch(() => setErr('Could not load team.'));
@@ -1032,6 +1041,46 @@ function Team() {
   useEffect(load, [load]);
 
   const canManage = info && info.team.myRole !== 'developer';
+  const isOwner = info?.team.myRole === 'owner';
+
+  const removeMember = async (m: TeamMember) => {
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await api(`/teams/me/members/${m.userId}`, { method: 'DELETE' });
+      setMsg(`${m.email} was removed from the team.`);
+      setRemoveTarget(null);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not remove this member.');
+    } finally { setBusy(false); }
+  };
+
+  const transferOwnership = async (m: TeamMember) => {
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await api('/teams/me/transfer-ownership', { body: { userId: m.userId } });
+      setMsg(`${m.email} is now the owner. You remain an admin.`);
+      setTransferTo(null);
+      await refresh();
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not transfer ownership.');
+    } finally { setBusy(false); }
+  };
+
+  const leaveTeam = async () => {
+    setBusy(true); setErr('');
+    try {
+      await api('/teams/me/leave', { method: 'POST' });
+      await refresh();
+      navigate('/app');
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'owner_cannot_leave'
+        ? 'You own this team — hand ownership to someone else first, or delete the team under Settings.'
+        : e instanceof Error ? e.message : 'Could not leave the team.');
+      setLeaving(false);
+    } finally { setBusy(false); }
+  };
 
   // The activity log is admin/owner-only server-side; fetch once we know the role.
   useEffect(() => {
@@ -1066,15 +1115,38 @@ function Team() {
             canManage ? <button onClick={() => setInviting((v) => !v)} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">+ Invite</button> : undefined
           } />
           <div className="divide-y divide-[--dark-line]">
-            {info.members.map((m) => (
-              <div key={m.userId} className="flex items-center justify-between px-5 py-3.5">
-                <div className="flex items-center gap-3">
-                  <span className="font-doto w-9 h-9 grid place-items-center border border-[--dark-line] text-sm">{m.email.slice(0, 2).toUpperCase()}</span>
-                  <div><p className="text-sm font-medium">{m.email}</p><p className="font-mono2 text-[11px] text-[--dark-muted]">joined {fmtDate(m.joinedAt)}</p></div>
+            {info.members.map((m) => {
+              const isSelf = m.userId === myUserId;
+              return (
+                <div key={m.userId} className="flex items-center justify-between gap-3 px-5 py-3.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="font-doto w-9 h-9 grid place-items-center border border-[--dark-line] text-sm shrink-0">{m.email.slice(0, 2).toUpperCase()}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {m.email}{isSelf && <span className="ml-2 font-mono2 text-[10px] text-[--dark-muted]">you</span>}
+                      </p>
+                      <p className="font-mono2 text-[11px] text-[--dark-muted]">joined {fmtDate(m.joinedAt)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${m.role === 'owner' ? 'border-[--red] text-[--red]' : 'border-[--dark-line] text-[--dark-muted]'}`}>{m.role}</span>
+                    {/* Owner hands over the role; the outgoing owner stays as admin. */}
+                    {isOwner && !isSelf && (
+                      <button onClick={() => setTransferTo(m)}
+                        className="font-mono2 text-[10px] uppercase tracking-wider text-[--dark-muted] hover:text-white border border-transparent hover:border-[--dark-line] px-2 py-1">
+                        Make owner
+                      </button>
+                    )}
+                    {canManage && !isSelf && m.role !== 'owner' && (
+                      <button onClick={() => setRemoveTarget(m)}
+                        className="font-mono2 text-[10px] uppercase tracking-wider text-[#F07A6A]/80 hover:text-[#F07A6A] border border-transparent hover:border-[#F07A6A]/40 px-2 py-1">
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${m.role === 'owner' ? 'border-[--red] text-[--red]' : 'border-[--dark-line] text-[--dark-muted]'}`}>{m.role}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
         {inviting && (
@@ -1118,6 +1190,86 @@ function Team() {
             <AuditList entries={audit} />
           </Card>
         )}
+
+        {/* Leaving is self-service for everyone except the owner, who would
+            orphan the team's billing — they transfer ownership or delete it. */}
+        <Card className={isOwner ? '' : 'border-[#F07A6A]/40'}>
+          <CardHead title="Leave this team" />
+          <div className="p-5 grid gap-3 max-w-md">
+            {isOwner ? (
+              <p className="text-sm text-[--dark-muted]">
+                You own <span className="text-[--dark-text]">{info.team.name}</span>, so you can't leave it directly.
+                Make another member the owner above, then leave — or delete the team entirely under Settings.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-[--dark-muted]">
+                  You'll lose access to <span className="text-[--dark-text]">{info.team.name}</span>, its environments and its tokens.
+                  An admin can invite you back later.
+                </p>
+                {!leaving ? (
+                  <button onClick={() => { setLeaving(true); setErr(''); }}
+                    className="font-mono2 text-[10px] uppercase tracking-widest border border-[#F07A6A]/40 text-[#F07A6A] px-4 py-2.5 hover:bg-[#F07A6A]/10 justify-self-start">
+                    Leave team
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={leaveTeam} disabled={busy}
+                      className="font-mono2 text-[10px] uppercase tracking-widest bg-[--red] text-white px-4 py-2.5 disabled:opacity-30">
+                      {busy ? 'Leaving…' : 'Yes, leave the team'}
+                    </button>
+                    <button onClick={() => setLeaving(false)}
+                      className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3">Cancel</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {removeTarget && (
+        <ConfirmDialog
+          title={`Remove ${removeTarget.email}?`}
+          body="They lose access to this team's environments and tokens immediately. You can invite them again later."
+          confirmLabel="Remove member"
+          busy={busy}
+          onCancel={() => setRemoveTarget(null)}
+          onConfirm={() => removeMember(removeTarget)}
+        />
+      )}
+
+      {transferTo && (
+        <ConfirmDialog
+          title={`Make ${transferTo.email} the owner?`}
+          body="They take over ownership and billing responsibility for this team. You stay on as an admin — this cannot be undone by you afterwards, only by the new owner."
+          confirmLabel="Transfer ownership"
+          busy={busy}
+          onCancel={() => setTransferTo(null)}
+          onConfirm={() => transferOwnership(transferTo)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Small modal for destructive-but-not-typed-confirmation actions. */
+function ConfirmDialog({ title, body, confirmLabel, busy, onCancel, onConfirm }: {
+  title: string; body: string; confirmLabel: string; busy: boolean;
+  onCancel: () => void; onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center px-5" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--dark-line] max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold text-lg break-all">{title}</h3>
+        <p className="mt-2 text-sm text-[--dark-muted]">{body}</p>
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+          <button onClick={onConfirm} disabled={busy}
+            className="font-mono2 text-xs px-4 py-2 bg-[--red] text-white disabled:opacity-30">
+            {busy ? 'Working…' : confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   );
