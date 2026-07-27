@@ -33,7 +33,9 @@ export function Imprint() {
       </p>
       <h2>Contact</h2>
       <p>
-        Email: admin@devplat.ch
+        General: hello@devplat.ch<br />
+        Legal &amp; data protection: admin@devplat.ch<br />
+        Security reports: security@devplat.ch
       </p>
       <h2>VAT / UID</h2>
       <p>
@@ -52,7 +54,7 @@ export function Imprint() {
 
 export function Terms() {
   return (
-    <LegalShell eyebrow="Legal" title="Terms of Service" updated="2026-07-23">
+    <LegalShell eyebrow="Legal" title="Terms of Service" updated="2026-07-27">
       <p>
         These Terms govern use of devplat (the "Service"), operated by Timo Schmidt{' '}
         ("we", "us"). By creating an account or using the Service you agree to these Terms.
@@ -76,7 +78,18 @@ export function Terms() {
         auto-renew until cancelled. You can cancel or change plans at any time through the billing
         portal; cancellation takes effect at the end of the current billing period. The free trial
         converts to no plan (not a paid plan) automatically at the end of the trial period unless you
-        upgrade.
+        upgrade. Prices are quoted excluding VAT; we are not currently VAT-registered.
+      </p>
+      <p>
+        <strong>Failed payments.</strong> If a charge fails we email the team owner and Stripe retries
+        over the following days. If no payment succeeds, the subscription is cancelled and the team
+        returns to the free tier — which means new environments stop starting. Your account, data and
+        settings remain intact and are restored as soon as a payment goes through.
+      </p>
+      <p>
+        <strong>Refunds.</strong> Charges already incurred are non-refundable, since the capacity was
+        reserved for you. If you believe you were billed in error, write to admin@devplat.ch — we will
+        look at it and put genuine mistakes right.
       </p>
       <h2>4. Acceptable use</h2>
       <p>You must not use the Service to:</p>
@@ -93,9 +106,9 @@ export function Terms() {
       </p>
       <h2>5. Data &amp; privacy</h2>
       <p>
-        Our Privacy Policy describes what account and billing data we process. A Data Processing
-        Agreement (DPA) is available on the Privacy &amp; Legal page for customers who need one under
-        Art. 28 GDPR.
+        Our Privacy Policy describes what account and billing data we process, who our sub-processors
+        are, and how long we keep things. If you need a Data Processing Agreement under Art. 28 GDPR,
+        contact admin@devplat.ch and we will provide one.
       </p>
       <h2>6. Availability</h2>
       <p>
@@ -119,6 +132,12 @@ export function Terms() {
         Either party may terminate at any time; paid fees already due remain payable. We may suspend
         or terminate accounts that violate Section 4 (Acceptable use).
       </p>
+      <p>
+        You can delete your account yourself at any time from Profile in the dashboard. On deletion
+        your account and team data are removed, except records we are legally required to retain (see
+        Retention in the Privacy Policy). Export your data first if you want a copy — Profile has a
+        one-click download.
+      </p>
       <h2>10. Changes to these Terms</h2>
       <p>
         We may update these Terms from time to time. Material changes will be announced by email or
@@ -130,14 +149,14 @@ export function Terms() {
         Switzerland, to the extent permitted by mandatory consumer-protection law.
       </p>
       <h2>12. Contact</h2>
-      <p>hello@devplat.ch</p>
+      <p>hello@devplat.ch (general) · admin@devplat.ch (legal and billing)</p>
     </LegalShell>
   );
 }
 
 export function PrivacyPolicy() {
   return (
-    <LegalShell eyebrow="Legal" title="Privacy Policy" updated="2026-07-23">
+    <LegalShell eyebrow="Legal" title="Privacy Policy" updated="2026-07-27">
       <h2>1. Controller</h2>
       <p>
         Timo Schmidt, Duggingerhof 54, 4053 Basel,
@@ -163,49 +182,107 @@ export function PrivacyPolicy() {
         you can withdraw at any time.
       </p>
       <h2>4. Sub-processors</h2>
-      <p>We use the following sub-processors:</p>
+      <p>These are the third parties that process personal data on our behalf:</p>
       <ul>
-        <li><strong>Stripe</strong> — payment processing.</li>
-        <li><strong>Resend</strong> — transactional email (verification, invites, password reset, contact-form notifications).</li>
+        <li>
+          <strong>Infomaniak Network SA</strong> (Geneva, Switzerland) — hosting of the control plane:
+          the servers running our API and database, which hold account, team, billing-reference and
+          usage data. Data centres are located in Switzerland.
+        </li>
+        <li><strong>Stripe</strong> (Stripe Payments Europe, Ltd.) — payment processing and invoicing.</li>
+        <li><strong>Resend</strong> — transactional email (verification, invitations, password reset, billing and trial notices, contact-form notifications).</li>
       </ul>
       <p>
-        Both are contractually bound to process data only on our instructions. A full, current
-        sub-processor list is available on request via hello@devplat.ch.
+        Each is contractually bound to process data only on our instructions. We will announce new
+        sub-processors before they start processing your data, so you have a chance to object.
       </p>
-      <h2>5. International transfers</h2>
+      <h2>5. Where your data is processed</h2>
       <p>
-        Your test-environment infrastructure runs exclusively on our own hardware in Basel,
-        Switzerland. Stripe and Resend may process account/billing metadata outside Switzerland
-        (including the US); where they do, this happens under Standard Contractual Clauses or an
-        equivalent adequacy mechanism.
+        <strong>Test environments</strong> — the microVMs your containers run in — execute exclusively on
+        our own hardware in Basel, Switzerland. No third-party cloud sits in that path.
+      </p>
+      <p>
+        <strong>Account and platform data</strong> — the database behind your account — is hosted with
+        Infomaniak in Switzerland. Switzerland holds an EU adequacy decision, so transfers from the
+        EU/EEA need no additional safeguards.
+      </p>
+      <p>
+        Stripe and Resend may process account and billing metadata outside Switzerland (including in
+        the US). Where they do, this happens under Standard Contractual Clauses or an equivalent
+        adequacy mechanism.
       </p>
       <h2>6. Retention</h2>
       <p>
-        Account data is kept for as long as your account is active, plus a limited period afterward
-        for legal/accounting obligations. Environment content has a retention period of effectively
-        zero — it is destroyed when the environment is destroyed.
+        Account and team data is kept while your account is active. When you delete your account it is
+        removed immediately, except where we must keep records to meet legal obligations — invoices
+        and the billing data on them are retained for <strong>10 years</strong> under Swiss accounting
+        law (Art. 958f CO). Usage/metering records are kept for <strong>24 months</strong> for billing
+        accuracy and capacity planning, then deleted.
+      </p>
+      <p>
+        Environment content has a retention period of effectively zero: the microVM and its storage
+        are destroyed when the run ends. We keep no backup of it, because none is created.
       </p>
       <h2>7. Your rights</h2>
       <p>
-        Under GDPR and the Swiss FADP you have the right to access, correct, delete, or export your
-        personal data, and to object to certain processing. Contact hello@devplat.ch to exercise any
-        of these rights. If you are in the EU/EEA or Switzerland, you also have the right to lodge a
-        complaint with your local data protection authority (in Switzerland: the FDPIC).
+        Under GDPR and the Swiss FADP you have the right to access, correct, delete, and export your
+        personal data, to restrict or object to certain processing, and to withdraw consent at any time.
       </p>
-      <h2>8. Cookies</h2>
       <p>
-        We use a single essential, httpOnly session cookie to keep you signed in. We do not use
-        third-party advertising or analytics cookies.
+        Two of these are self-service in the dashboard, so you don&rsquo;t have to wait on us: under{' '}
+        <strong>Profile</strong> you can download a machine-readable export of your data (right of
+        access and portability) and delete your account outright. For anything else, write to
+        admin@devplat.ch — we respond within 30 days.
+      </p>
+      <p>
+        If you are in the EU/EEA or Switzerland, you also have the right to lodge a complaint with
+        your data protection authority (in Switzerland: the Federal Data Protection and Information
+        Commissioner, FDPIC).
+      </p>
+      <h2>7a. Data processing agreement</h2>
+      <p>
+        If you use devplat as a business and need a data processing agreement under Art. 28 GDPR,
+        contact admin@devplat.ch and we will provide one.
+      </p>
+      <h2>8. Cookies and local storage</h2>
+      <p>
+        We use a single essential, httpOnly session cookie to keep you signed in. We set no
+        third-party advertising or analytics cookies, and we do not track you across other sites.
+      </p>
+      <p>
+        Your browser&rsquo;s local storage is also used for small interface preferences — which
+        notices you have dismissed, for example. That data never leaves your device and is not
+        personal data we receive.
+      </p>
+      <h2>8a. Automated decision-making</h2>
+      <p>
+        We do not use your personal data for automated decision-making or profiling with legal or
+        similarly significant effects.
       </p>
       <h2>9. Security</h2>
       <p>
-        See the Security model section on the How it works page for the technical measures protecting
-        your account and environments.
+        Passwords are stored only as bcrypt hashes and are checked against known breach corpora;
+        two-factor authentication is available; each customer&rsquo;s environments are isolated by a
+        hypervisor boundary. The Security page documents the specific mechanisms. To report a
+        vulnerability, write to security@devplat.ch — see our bug bounty page.
       </p>
-      <h2>10. Changes</h2>
-      <p>We may update this policy from time to time; material changes will be announced by email.</p>
-      <h2>11. Contact</h2>
-      <p>hello@devplat.ch</p>
+      <h2>10. Data breaches</h2>
+      <p>
+        If a breach occurs that is likely to result in a risk to your rights and freedoms, we will
+        notify the competent supervisory authority within 72 hours of becoming aware of it, and
+        inform affected customers without undue delay.
+      </p>
+      <h2>11. Changes</h2>
+      <p>
+        We may update this policy from time to time. The date at the top always reflects the current
+        version, and material changes will be announced by email before they take effect.
+      </p>
+      <h2>12. Contact</h2>
+      <p>
+        Data protection matters: admin@devplat.ch<br />
+        General enquiries: hello@devplat.ch<br />
+        Security reports: security@devplat.ch
+      </p>
     </LegalShell>
   );
 }
