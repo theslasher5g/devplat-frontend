@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Activate from '@/components/site/Activate';
 import Admin from '@/components/site/Admin';
-import Auth, { InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
+import Auth, { ConfirmEmailChange, InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
 import BugBounty from '@/components/site/BugBounty';
 import Contact from '@/components/site/Contact';
 import CookieNotice from '@/components/site/CookieNotice';
@@ -204,6 +204,7 @@ export default function App() {
           <Route path="/status/unsubscribe" element={<StatusUnsubscribePage />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/invite" element={<InviteAccept />} />
           <Route path="/activate" element={<RequireAuth><Activate /></RequireAuth>} />

@@ -37,6 +37,28 @@ export interface Me {
   team: { id: string; name: string; role: 'owner' | 'admin' | 'developer'; planTier: string; trialEndsAt: string } | null;
 }
 
+export interface TeamSummary {
+  id: string; name: string; role: string; planTier: string; planLabel: string;
+  members: number; joinedAt: string; active: boolean;
+}
+
+export interface AdminSystemHealth {
+  host: {
+    cpuPercent: number; cpuCores: number;
+    loadAverage: { one: number; five: number; fifteen: number };
+    memory: { totalBytes: number; usedBytes: number; percent: number; source: string };
+    disk: { totalBytes: number; usedBytes: number; percent: number } | null;
+    uptimeSeconds: number; processUptimeSeconds: number;
+  };
+  database: {
+    sizePretty: string; sizeBytes: number;
+    connections: { total: number; active: number; idleInTransaction: number; waitingOnLocks: number; max: number };
+    cacheHitRatio: number | null;
+    commits: number; rollbacks: number; deadlocks: number;
+    slowestQueries: { query: string; calls: number; meanMs: number; totalMs: number }[] | null;
+  };
+}
+
 export interface TwoFactorStatus {
   enabled: boolean; enabledAt: string | null; recoveryCodesRemaining: number;
 }

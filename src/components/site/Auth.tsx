@@ -251,6 +251,50 @@ export default function Auth() {
 
 /* ---------- /verify-email?token=… ---------- */
 
+/** Landing page for the link sent to a NEW address during an email change.
+ *  Only clicking this actually switches the account's sign-in address. */
+export function ConfirmEmailChange() {
+  const [params] = useSearchParams();
+  const [state, setState] = useState<'working' | 'done' | 'failed'>('working');
+  const [email, setEmail] = useState('');
+  const [reason, setReason] = useState('');
+  useEffect(() => {
+    const token = params.get('token');
+    if (!token) { setState('failed'); return; }
+    api<{ email: string }>('/auth/change-email/confirm', { body: { token } })
+      .then((res) => { setEmail(res.email); setState('done'); })
+      .catch((e) => {
+        setReason(e instanceof ApiError && e.code === 'email_taken'
+          ? 'That address has since been registered by someone else.'
+          : 'This confirmation link is invalid or has expired.');
+        setState('failed');
+      });
+  }, [params]);
+  return (
+    <AuthShell>
+      <p className="eyebrow eyebrow-dot mb-4">Email change</p>
+      {state === 'working' && <h1 className="text-3xl font-semibold tracking-tight">Confirming …</h1>}
+      {state === 'done' && (
+        <>
+          <h1 className="text-3xl font-semibold tracking-tight">Address updated.</h1>
+          <p className="mt-2 text-sm text-[--ink-soft]">
+            <span className="font-mono2 break-all">{email}</span> is now your sign-in address.
+            For safety, every existing session was signed out — please sign in again.
+          </p>
+          <Link to="/auth" className="btn-ink inline-block mt-8 px-8 py-3 text-sm">Sign in</Link>
+        </>
+      )}
+      {state === 'failed' && (
+        <>
+          <h1 className="text-3xl font-semibold tracking-tight">Link invalid.</h1>
+          <p className="mt-2 text-sm text-[--ink-soft]">{reason || 'This confirmation link is invalid or has expired.'} Your existing address is unchanged.</p>
+          <Link to="/auth" className="btn-ink inline-block mt-8 px-8 py-3 text-sm">Go to sign-in</Link>
+        </>
+      )}
+    </AuthShell>
+  );
+}
+
 export function VerifyEmail() {
   const [params] = useSearchParams();
   const [state, setState] = useState<'working' | 'done' | 'failed'>('working');

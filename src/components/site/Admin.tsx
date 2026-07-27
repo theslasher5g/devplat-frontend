@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   api, type AdminActivity, type AdminHost, type AdminHostDetail, type AdminOverview, type AdminStatusComponent,
-  type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
+  type AdminSystemHealth, type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
   type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -772,15 +772,161 @@ function ActivityFeed({ activity }: { activity: AdminActivity }) {
   );
 }
 
-type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'audit' | 'status';
+type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'system' | 'audit' | 'status';
 const ADMIN_NAV: { key: AdminView; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'teams', label: 'Teams' },
   { key: 'users', label: 'Users' },
   { key: 'hosts', label: 'Hosts' },
+  { key: 'system', label: 'System' },
   { key: 'audit', label: 'Audit log' },
   { key: 'status', label: 'Status page' },
 ];
+
+function fmtBytes(n: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function fmtUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** Horizontal gauge; turns amber then red as it fills, so a saturated resource
+ *  is visible without reading the number. */
+function Gauge({ label, percent, detail }: { label: string; percent: number; detail: string }) {
+  const color = percent >= 90 ? 'bg-[--red]' : percent >= 75 ? 'bg-[#E8B44C]' : 'bg-[#57C99A]/80';
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{label}</span>
+        <span className="font-doto text-xl">{percent.toFixed(0)}%</span>
+      </div>
+      <div className="h-2 bg-white/[0.1] border border-[--dark-line]">
+        <div className={`h-full ${color}`} style={{ width: `${Math.min(percent, 100)}%` }} />
+      </div>
+      <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">{detail}</p>
+    </div>
+  );
+}
+
+/** Control-plane VPS + Postgres health. The Hosts tab covers the Firecracker
+ *  data plane; this covers the machine the API and database themselves run on,
+ *  which previously had no visibility at all. */
+function SystemPanel() {
+  const [data, setData] = useState<AdminSystemHealth | null>(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const load = () => api<AdminSystemHealth>('/admin/system').then(setData)
+      .catch(() => setErr('Could not load system health.'));
+    load();
+    const t = setInterval(load, 15000); // live enough to watch a spike
+    return () => clearInterval(t);
+  }, []);
+
+  if (err) return <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>;
+  if (!data) return <p className="font-mono2 text-xs text-[--dark-muted]">Loading …</p>;
+
+  const { host, database } = data;
+  const connPercent = database.connections.max > 0
+    ? (database.connections.total / database.connections.max) * 100 : 0;
+  const hitPercent = database.cacheHitRatio === null ? null : database.cacheHitRatio * 100;
+
+  return (
+    <div className="grid gap-5">
+      <Card>
+        <CardHead title="Control-plane host" right={
+          <span className="font-mono2 text-[10px] text-[--dark-muted]">
+            up {fmtUptime(host.uptimeSeconds)} · API {fmtUptime(host.processUptimeSeconds)}
+          </span>
+        } />
+        <div className="p-5 grid gap-5 sm:grid-cols-3">
+          <Gauge label="CPU" percent={host.cpuPercent}
+            detail={`${host.cpuCores} core${host.cpuCores === 1 ? '' : 's'} · load ${host.loadAverage.one.toFixed(2)} / ${host.loadAverage.five.toFixed(2)} / ${host.loadAverage.fifteen.toFixed(2)}`} />
+          <Gauge label="Memory" percent={host.memory.percent}
+            detail={`${fmtBytes(host.memory.usedBytes)} of ${fmtBytes(host.memory.totalBytes)} (${host.memory.source})`} />
+          {host.disk
+            ? <Gauge label="Disk" percent={host.disk.percent}
+                detail={`${fmtBytes(host.disk.usedBytes)} of ${fmtBytes(host.disk.totalBytes)}`} />
+            : <div><p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Disk</p>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] mt-2">unavailable</p></div>}
+        </div>
+      </Card>
+
+      <Card>
+        <CardHead title="Database" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">{database.sizePretty}</span>} />
+        <div className="p-5 grid gap-5">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Gauge label="Connections" percent={connPercent}
+              detail={`${database.connections.total} of ${database.connections.max} · ${database.connections.active} active`} />
+            {hitPercent === null ? (
+              <div><p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Cache hit rate</p>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] mt-2">no data yet</p></div>
+            ) : (
+              <div>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <span className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Cache hit rate</span>
+                  <span className={`font-doto text-xl ${hitPercent < 95 ? 'text-[#E8B44C]' : ''}`}>{hitPercent.toFixed(2)}%</span>
+                </div>
+                <p className="font-mono2 text-[10px] text-[--dark-muted]">
+                  {hitPercent < 95
+                    ? 'Below 95% — reads are hitting disk; the DB may need more memory.'
+                    : 'Reads are being served from memory.'}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-4 border-t border-[--dark-line] pt-4">
+            {([
+              ['Commits', database.commits.toLocaleString()],
+              ['Rollbacks', database.rollbacks.toLocaleString()],
+              ['Deadlocks', database.deadlocks.toLocaleString(), database.deadlocks > 0],
+              ['Idle in txn', String(database.connections.idleInTransaction), database.connections.idleInTransaction > 3],
+            ] as [string, string, boolean?][]).map(([label, value, warn]) => (
+              <div key={label}>
+                <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">{label}</p>
+                <p className={`font-doto text-2xl mt-1 ${warn ? 'text-[#E8B44C]' : ''}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHead title="Slowest queries" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">by mean time</span>} />
+        {database.slowestQueries === null ? (
+          <p className="px-5 py-4 text-xs text-[--dark-muted] max-w-[80ch]">
+            Query timings need the <span className="font-mono2 text-[--dark-text]">pg_stat_statements</span> extension.
+            Enable it once with <span className="font-mono2 text-[--dark-text]">CREATE EXTENSION pg_stat_statements;</span> and add
+            <span className="font-mono2 text-[--dark-text]"> shared_preload_libraries = 'pg_stat_statements'</span> to postgresql.conf
+            (needs a restart).
+          </p>
+        ) : database.slowestQueries.length === 0 ? (
+          <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">No queries recorded yet.</p>
+        ) : (
+          <div className="divide-y divide-[--dark-line]">
+            {database.slowestQueries.map((q) => (
+              <div key={q.query} className="px-5 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <code className="font-mono2 text-[11px] text-[--dark-text] break-all">{q.query}</code>
+                  <span className={`font-mono2 text-[11px] shrink-0 ${q.meanMs > 100 ? 'text-[#E8B44C]' : 'text-[--dark-muted]'}`}>{q.meanMs} ms</span>
+                </div>
+                <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">{q.calls.toLocaleString()} calls · {q.totalMs.toLocaleString()} ms total</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
 
 // Consistent line icons for the admin tabs — same 24-grid / 1.6-stroke set as
 // the dashboard sidebar, replacing the earlier mixed glyphs (incl. a smiley).
@@ -790,6 +936,7 @@ function AdminIcon({ name }: { name: AdminView }) {
     teams: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17 13.5a5.5 5.5 0 0 1 3.5 5.5" /></>,
     users: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></>,
     hosts: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
+    system: <><path d="M3 12h3l2-5 4 10 2-5h7" /></>,
     audit: <><path d="M8 4h9l3 3v13H8z" /><path d="M4 8v12h12" /><path d="M11 11h6M11 15h6" /></>,
     status: <><path d="M3 12h4l2 5 4-12 2 7h6" /></>,
   };
@@ -1109,6 +1256,8 @@ export default function Admin() {
             {audit === null ? <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p> : <AuditList entries={audit} />}
           </Card>
         )}
+
+        {view === 'system' && <SystemPanel />}
 
         {view === 'status' && <StatusAdmin />}
         </div>

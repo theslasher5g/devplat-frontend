@@ -4,7 +4,7 @@ import {
   API_URL, ApiError, LEVEL_META, api,
   type ApiTokenInfo, type AuditEntry, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
   type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo, type ReferralInfo,
-  type StatusSummary, type SubscriptionInfo, type TeamInfo, type TwoFactorSetup, type TwoFactorStatus,
+  type StatusSummary, type SubscriptionInfo, type TeamInfo, type TeamSummary, type TwoFactorSetup, type TwoFactorStatus,
   type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -1068,6 +1068,17 @@ function Team() {
     } finally { setBusy(false); }
   };
 
+  const revokeInvite = async (id: string, email: string) => {
+    setErr(''); setMsg('');
+    try {
+      await api(`/teams/me/invites/${id}`, { method: 'DELETE' });
+      setMsg(`Invitation to ${email} withdrawn.`);
+      load();
+    } catch {
+      setErr('Could not withdraw that invitation.');
+    }
+  };
+
   const leaveTeam = async () => {
     setBusy(true); setErr('');
     try {
@@ -1100,7 +1111,12 @@ function Team() {
       setInviting(false);
       load();
     } catch (e) {
-      setErr(e instanceof ApiError && e.code === 'already_member' ? 'This person is already on the team.' : 'Invitation could not be sent.');
+      setErr(
+        e instanceof ApiError && e.code === 'already_member' ? 'This person is already on the team.'
+          // The API explains exactly how many seats the plan includes.
+          : e instanceof ApiError && e.code === 'seat_limit_reached' ? e.message
+            : 'Invitation could not be sent.',
+      );
     }
   };
 
@@ -1176,9 +1192,15 @@ function Team() {
             <CardHead title={`Pending invitations (${info.pendingInvites.length})`} />
             <div className="divide-y divide-[--dark-line]">
               {info.pendingInvites.map((i) => (
-                <div key={i.id} className="flex items-center justify-between px-5 py-3 font-mono2 text-xs">
-                  <span>{i.email}</span>
-                  <span className="text-[--dark-muted]">{i.role} · expires {fmtDate(i.expiresAt)}</span>
+                <div key={i.id} className="flex items-center justify-between gap-3 px-5 py-3 font-mono2 text-xs">
+                  <span className="truncate">{i.email}</span>
+                  <span className="flex items-center gap-3 shrink-0">
+                    <span className="text-[--dark-muted]">{i.role} · expires {fmtDate(i.expiresAt)}</span>
+                    {canManage && (
+                      <button onClick={() => revokeInvite(i.id, i.email)}
+                        className="text-[#F07A6A]/80 hover:text-[#F07A6A] uppercase tracking-wider">Revoke</button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
@@ -1369,6 +1391,100 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
         </div>
       </Card>
       {myRole === 'owner' && <DeleteTeamCard teamName={teamName} />}
+    </div>
+  );
+}
+
+/** Header dropdown for switching between the teams you belong to, and creating
+ *  a new one. Renders as a plain label when there's only one team and nothing
+ *  to switch to — but still offers "create", since that's the only escape from
+ *  the teamless state. */
+function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: () => void }) {
+  const [teams, setTeams] = useState<TeamSummary[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = useCallback(() => {
+    api<{ teams: TeamSummary[] }>('/teams').then((d) => setTeams(d.teams)).catch(() => setTeams([]));
+  }, []);
+  useEffect(() => { if (open && teams === null) load(); }, [open, teams, load]);
+
+  const switchTo = async (id: string) => {
+    setBusy(true);
+    try {
+      await api('/teams/switch', { body: { teamId: id } });
+      setOpen(false);
+      onSwitched();
+    } catch { setErr('Could not switch team.'); } finally { setBusy(false); }
+  };
+
+  const create = async () => {
+    if (!name.trim()) return;
+    setBusy(true); setErr('');
+    try {
+      await api('/teams', { body: { name: name.trim() } });
+      setName(''); setCreating(false); setOpen(false); setTeams(null);
+      onSwitched();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not create the team.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 font-mono2 text-xs uppercase tracking-widest text-[--dark-muted] hover:text-white transition-colors">
+        <span className="truncate max-w-[22ch]">{current}</span>
+        <span className={`text-[9px] transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>▼</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute left-0 mt-2 z-40 w-72 bg-[--dark-card] border border-[--dark-line] shadow-xl">
+            <p className="px-4 py-2 font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] border-b border-[--dark-line]">Your teams</p>
+            <div className="max-h-64 overflow-y-auto divide-y divide-[--dark-line]">
+              {teams === null && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+              {teams?.map((t) => (
+                <button key={t.id} onClick={() => !t.active && switchTo(t.id)} disabled={busy}
+                  className={`w-full text-left px-4 py-2.5 hover:bg-white/[0.03] transition-colors ${t.active ? 'bg-white/[0.04]' : ''}`}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm truncate">{t.name}</span>
+                    {t.active && <span className="font-mono2 text-[9px] uppercase tracking-wider text-[--red] shrink-0">current</span>}
+                  </span>
+                  <span className="font-mono2 text-[10px] text-[--dark-muted]">
+                    {t.role} · {t.planLabel} · {t.members} member{t.members === 1 ? '' : 's'}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-[--dark-line] p-3">
+              {creating ? (
+                <div className="grid gap-2">
+                  <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="New team name"
+                    onKeyDown={(e) => { if (e.key === 'Enter') void create(); }}
+                    className="w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white" />
+                  <div className="flex gap-2">
+                    <button onClick={create} disabled={busy || !name.trim()}
+                      className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-3 py-2 hover:bg-white hover:text-[--dark] disabled:opacity-30">
+                      {busy ? 'Creating…' : 'Create'}
+                    </button>
+                    <button onClick={() => { setCreating(false); setErr(''); }} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-2">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setCreating(true)}
+                  className="w-full text-left font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] hover:text-white">
+                  + Create a team
+                </button>
+              )}
+              {err && <p className="mt-2 font-mono2 text-[10px] text-[#F07A6A]">{err}</p>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1693,6 +1809,105 @@ function DeleteAccountCard({ email }: { email: string }) {
   );
 }
 
+/** Change the sign-in email. The new address must be confirmed before it takes
+ *  effect, so a typo can't lock the account away. */
+function ChangeEmailCard({ email }: { email: string }) {
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [next, setNext] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [sent, setSent] = useState('');
+
+  const submit = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const res = await api<{ pendingEmail: string }>('/auth/change-email', { body: { password: pw, newEmail: next.trim() } });
+      setSent(res.pendingEmail); setPw(''); setNext(''); setOpen(false);
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_credentials' ? 'That password is not correct.'
+        : e instanceof ApiError && e.code === 'email_taken' ? 'That address is already in use.'
+        : e instanceof Error ? e.message : 'Could not start the email change.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <CardHead title="Email address" />
+      <div className="p-5 grid gap-3 max-w-md">
+        <p className="text-sm text-[--dark-muted]">
+          Currently <span className="text-[--dark-text] break-all">{email}</span>. Changing it sends a
+          confirmation link to the new address — nothing changes until you click it.
+        </p>
+        {sent && <p className="font-mono2 text-xs text-[#57C99A]">Confirmation sent to {sent}. Check that inbox to finish.</p>}
+        {!open ? (
+          <button onClick={() => { setOpen(true); setSent(''); }}
+            className="font-mono2 text-[10px] uppercase tracking-widest border border-[--dark-line] px-4 py-2.5 hover:border-white justify-self-start">
+            Change email
+          </button>
+        ) : (
+          <>
+            <DarkField label="New email address" type="email" value={next} onChange={setNext} />
+            <DarkField label="Current password" type="password" value={pw} onChange={setPw} />
+            {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={submit} disabled={busy || !pw || !next.includes('@')}
+                className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30">
+                {busy ? 'Sending…' : 'Send confirmation'}
+              </button>
+              <button onClick={() => { setOpen(false); setErr(''); }} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3">Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** Download everything we hold about this account (GDPR Art. 15/20). */
+function DataExportCard() {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const download = async () => {
+    setBusy(true); setErr('');
+    try {
+      // Not via api(): this returns a file, not JSON to parse.
+      const res = await fetch(`${API_URL}/account/export`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Export failed.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `devplat-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Export failed.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <CardHead title="Your data" />
+      <div className="p-5 grid gap-3 max-w-md">
+        <p className="text-sm text-[--dark-muted]">
+          Download a machine-readable copy of your account, team memberships, and — for teams you
+          administer — their tokens, run history and audit log. Secrets are never included:
+          passwords and token values exist only as irreversible hashes.
+        </p>
+        {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        <button onClick={download} disabled={busy}
+          className="font-mono2 text-[10px] uppercase tracking-widest border border-[--dark-line] px-4 py-2.5 hover:border-white disabled:opacity-30 justify-self-start">
+          {busy ? 'Preparing…' : 'Download my data (JSON)'}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function Profile({ email, verified }: { email: string; verified: boolean }) {
   return (
     <div className="grid gap-5">
@@ -1711,8 +1926,10 @@ function Profile({ email, verified }: { email: string; verified: boolean }) {
           </div>
         </div>
       </Card>
+      <ChangeEmailCard email={email} />
       <TwoFactorCard />
       <ChangePasswordCard />
+      <DataExportCard />
       <DeleteAccountCard email={email} />
     </div>
   );
@@ -1739,6 +1956,49 @@ function NavIcon({ name }: { name: View | 'admin' }) {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {p[name]}
     </svg>
+  );
+}
+
+/** Landing state for an account that belongs to no team. */
+function NoTeam({ onCreated }: { onCreated: () => void }) {
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const create = async () => {
+    if (!name.trim()) return;
+    setBusy(true); setErr('');
+    try {
+      await api('/teams', { body: { name: name.trim() } });
+      onCreated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not create the team.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[--dark] text-[--dark-text] grid place-items-center p-8">
+      <div className="max-w-md w-full">
+        <Logo dark onClick={() => navigate('/')} />
+        <h1 className="mt-6 text-2xl font-semibold">You're not in a team yet.</h1>
+        <p className="mt-2 text-sm text-[--dark-muted]">
+          Environments, tokens and billing all belong to a team. Create one to get started —
+          or, if a colleague invited you, open the invitation link from your inbox instead.
+        </p>
+        <div className="mt-6 grid gap-3">
+          <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Team name"
+            onKeyDown={(e) => { if (e.key === 'Enter') void create(); }}
+            className="w-full bg-transparent border border-[--dark-line] px-3 py-2.5 text-sm outline-none focus:border-white" />
+          {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+          <button onClick={create} disabled={busy || !name.trim()}
+            className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30 justify-self-start">
+            {busy ? 'Creating…' : 'Create team'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1787,18 +2047,11 @@ export default function Dashboard() {
     return days;
   })();
 
-  // Invited users who registered but haven't accepted their invite yet have no team.
+  // No team: either an invited user who hasn't accepted yet, or someone who
+  // left (or was removed from) their last one. Both need a way forward, not
+  // just an explanation — creating a team is the only escape from this state.
   if (me && !me.team) {
-    return (
-      <div className="min-h-screen bg-[--dark] text-[--dark-text] grid place-items-center p-8">
-        <div className="max-w-md text-center">
-          <Logo dark onClick={() => navigate('/')} />
-          <p className="mt-6 text-sm text-[--dark-muted]">
-            Your account has no team yet. If you were invited, open the invitation link from your email to join the team.
-          </p>
-        </div>
-      </div>
-    );
+    return <NoTeam onCreated={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />;
   }
 
   return (
@@ -1835,7 +2088,13 @@ export default function Dashboard() {
         <header className="h-16 border-b border-[--dark-line] flex items-center justify-between px-5 sticky top-0 bg-[--dark]/95 backdrop-blur z-30">
           <div className="flex items-center gap-4">
             <span className="md:hidden"><Logo dark onClick={() => navigate('/')} /></span>
-            <h1 className="hidden md:block font-mono2 text-xs uppercase tracking-widest text-[--dark-muted]">{teamName} / {titles[view]}</h1>
+            <div className="hidden md:flex items-center gap-2">
+              <TeamSwitcher
+                current={teamName}
+                onSwitched={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => setTeamInfo(null)); }}
+              />
+              <span className="font-mono2 text-xs uppercase tracking-widest text-[--dark-muted]">/ {titles[view]}</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {trialDaysLeft !== null && (
