@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PASSWORD_MIN_LENGTH, passwordMeetsPolicy, passwordRules } from '@/lib/passwordPolicy';
 import RocketMascot from './RocketMascot';
 import { Logo } from './Shared';
 
@@ -9,7 +10,10 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_credentials: 'Email or password is incorrect.',
   email_not_verified: 'Please confirm your email address first — check your inbox.',
   email_taken: 'An account with this email already exists.',
-  validation_failed: 'Please check your input (password: at least 10 characters).',
+  validation_failed: `Please check your input (password: at least ${PASSWORD_MIN_LENGTH} characters).`,
+  // The API returns a specific reason in `detail` (unmet rule, or a breach
+  // hit); ApiError surfaces that as the message, so prefer it when present.
+  weak_password: 'Please choose a stronger password.',
   invalid_or_expired_token: 'This link is invalid or has expired.',
   invalid_or_expired_invite: 'This invitation is invalid or has expired.',
   invite_for_different_email: 'This invitation was issued for a different email address.',
@@ -17,8 +21,28 @@ const ERROR_TEXT: Record<string, string> = {
 };
 
 export function errText(err: unknown): string {
-  if (err instanceof ApiError) return ERROR_TEXT[err.code] ?? `Something went wrong (${err.code}).`;
+  if (err instanceof ApiError) {
+    // A rejected password comes back with a precise reason (which rule failed,
+    // or that it appeared in a breach) — that's far more useful than a generic
+    // line, so show the server's detail when it differs from the bare code.
+    if (err.code === 'weak_password' && err.message && err.message !== err.code) return err.message;
+    return ERROR_TEXT[err.code] ?? `Something went wrong (${err.code}).`;
+  }
   return 'Network error — is the API reachable?';
+}
+
+/** Live policy checklist shown under password fields on the create/reset flows. */
+export function PasswordChecklist({ password }: { password: string }) {
+  if (!password) return null;
+  return (
+    <ul className="mt-2 grid gap-1">
+      {passwordRules(password).map((r) => (
+        <li key={r.label} className={`font-mono2 text-[11px] flex items-center gap-2 ${r.ok ? 'text-[#23A26D]' : 'text-[--ink-soft]'}`}>
+          <span aria-hidden>{r.ok ? '✓' : '○'}</span>{r.label}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function Field({ label, type, value, onChange, placeholder, autoFocus }: {
@@ -91,6 +115,7 @@ export default function Auth() {
     if (!mail.includes('@')) { setErr('Please enter a valid email address.'); return; }
     if (mode !== 'forgot' && !pw) { setErr('Please enter a password.'); return; }
     if (mode === 'register' && pw !== pw2) { setErr('Passwords do not match.'); return; }
+    if (mode === 'register' && !passwordMeetsPolicy(pw)) { setErr('Please meet all the password requirements below.'); return; }
     setBusy(true);
     try {
       if (mode === 'login') {
@@ -152,7 +177,10 @@ export default function Auth() {
         )}
         <Field label="Email" type="email" value={mail} onChange={setMail} autoFocus />
         {mode !== 'forgot' && (
-          <Field label={mode === 'register' ? 'Password (min. 10 characters)' : 'Password'} type="password" value={pw} onChange={setPw} />
+          <div>
+            <Field label="Password" type="password" value={pw} onChange={setPw} />
+            {mode === 'register' && <PasswordChecklist password={pw} />}
+          </div>
         )}
         {mode === 'register' && (
           <Field label="Confirm password" type="password" value={pw2} onChange={setPw2} />
@@ -228,7 +256,7 @@ export function ResetPassword() {
 
   const submit = async () => {
     setErr('');
-    if (pw.length < 10) { setErr('Password must be at least 10 characters.'); return; }
+    if (!passwordMeetsPolicy(pw)) { setErr('Please meet all the password requirements below.'); return; }
     if (pw !== pw2) { setErr('Passwords do not match.'); return; }
     try {
       await api('/auth/reset-password', { body: { token, password: pw } });
@@ -251,7 +279,10 @@ export function ResetPassword() {
         <>
           <h1 className="text-3xl font-semibold tracking-tight">Set a new password.</h1>
           <div className="mt-8 space-y-4">
-            <Field label="New password (min. 10 characters)" type="password" value={pw} onChange={setPw} autoFocus />
+            <div>
+              <Field label="New password" type="password" value={pw} onChange={setPw} autoFocus />
+              <PasswordChecklist password={pw} />
+            </div>
             <Field label="Repeat password" type="password" value={pw2} onChange={setPw2} />
             {err && <p className="text-sm text-[--red]">{err}</p>}
             <button onClick={submit} className="btn-ink w-full py-3 text-sm">Save password</button>
@@ -298,7 +329,7 @@ export function InviteAccept() {
   const registerAndAccept = async () => {
     if (!invite) return;
     setErr('');
-    if (pw.length < 10) { setErr('Password must be at least 10 characters.'); return; }
+    if (!passwordMeetsPolicy(pw)) { setErr('Please meet all the password requirements below.'); return; }
     try {
       await api('/auth/register', { body: { email: invite.email, password: pw } });
       setAccountCreated(true);
@@ -370,7 +401,8 @@ export function InviteAccept() {
           )}
           {!loading && !me && !invite.accountExists && (
             <div className="mt-8 space-y-4">
-              <Field label="Choose a password (min. 10 characters)" type="password" value={pw} onChange={setPw} autoFocus />
+              <Field label="Choose a password" type="password" value={pw} onChange={setPw} autoFocus />
+              <PasswordChecklist password={pw} />
               {err && <p className="text-sm text-[--red]">{err}</p>}
               <button onClick={registerAndAccept} className="btn-ink w-full py-3 text-sm">Create account</button>
             </div>
