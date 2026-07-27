@@ -1290,6 +1290,43 @@ function DarkField({ label, type, value, onChange, placeholder }: {
   );
 }
 
+/** QR code for the otpauth:// enrolment URI, so the secret can be scanned
+ *  instead of typed. The encoder is imported dynamically — it's only needed on
+ *  this one screen, and lazy-loading keeps it out of the main bundle. Rendered
+ *  as an SVG string (crisp at any size, no canvas ref juggling). */
+function OtpQr({ uri }: { uri: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    import('qrcode')
+      .then((QR) => QR.toString(uri, {
+        type: 'svg',
+        margin: 1,
+        errorCorrectionLevel: 'M',
+        // Dark modules in white cells: authenticator scanners want high
+        // contrast, and the dashboard's dark card would otherwise invert it.
+        color: { dark: '#0C0C0C', light: '#FFFFFF' },
+      }))
+      .then((out) => { if (alive) setSvg(out); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [uri]);
+
+  if (failed) return null; // fall back to the setup key below it
+  if (!svg) return <Skeleton className="h-44 w-44" />;
+  return (
+    <div
+      className="bg-white p-3 w-fit border border-[--dark-line] [&>svg]:w-40 [&>svg]:h-40 [&>svg]:block"
+      // The SVG is produced locally by the encoder from a URI we built
+      // ourselves — no user- or network-supplied markup reaches this.
+      dangerouslySetInnerHTML={{ __html: svg }}
+      aria-label="QR code for two-factor setup"
+    />
+  );
+}
+
 /** Enrol in / remove TOTP two-factor authentication. */
 function TwoFactorCard() {
   const [status, setStatus] = useState<TwoFactorStatus | null>(null);
@@ -1382,18 +1419,23 @@ function TwoFactorCard() {
         {setup && (
           <>
             <p className="text-sm text-[--dark-muted]">
-              Add this to your authenticator app, then enter the 6-digit code it shows to confirm.
+              Scan this with your authenticator app, then enter the 6-digit code it shows to confirm.
             </p>
-            <div>
-              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Setup key</p>
-              <div className="mt-1.5 flex items-center gap-2">
-                <code className="flex-1 font-mono2 text-xs bg-black/40 border border-[--dark-line] px-3 py-2 break-all select-all">{setup.secret}</code>
-                <CopyButton value={setup.secret} />
+            <OtpQr uri={setup.otpauthUri} />
+            <details className="border border-[--dark-line]">
+              <summary className="cursor-pointer list-none px-3 py-2 font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] hover:text-white">
+                Can't scan? Enter the key manually
+              </summary>
+              <div className="px-3 pb-3">
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 font-mono2 text-xs bg-black/40 border border-[--dark-line] px-3 py-2 break-all select-all">{setup.secret}</code>
+                  <CopyButton value={setup.secret} />
+                </div>
+                <a href={setup.otpauthUri} className="mt-2 inline-block font-mono2 text-[10px] text-[#8AB8F0] hover:underline">
+                  Or open your authenticator app directly
+                </a>
               </div>
-              <a href={setup.otpauthUri} className="mt-2 inline-block font-mono2 text-[10px] text-[#8AB8F0] hover:underline">
-                Open in your authenticator app
-              </a>
-            </div>
+            </details>
             <DarkField label="6-digit code" type="text" value={code} onChange={setCode} placeholder="123456" />
             {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
             <div className="flex gap-2">
