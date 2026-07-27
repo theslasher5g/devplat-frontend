@@ -37,6 +37,12 @@ export interface Me {
   team: { id: string; name: string; role: 'owner' | 'admin' | 'developer'; planTier: string; trialEndsAt: string } | null;
 }
 
+export interface TwoFactorStatus {
+  enabled: boolean; enabledAt: string | null; recoveryCodesRemaining: number;
+}
+
+export interface TwoFactorSetup { secret: string; otpauthUri: string }
+
 export interface TeamInfo {
   team: {
     id: string; name: string; planTier: string; planLabel: string; parallelLimit: number;

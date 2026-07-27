@@ -95,6 +95,11 @@ export default function Auth() {
   const [err, setErr] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  // Second-factor challenge: the server answers the first login attempt with
+  // `totp_required`, which flips this on and re-submits with the code.
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totp, setTotp] = useState('');
+  const [useRecovery, setUseRecovery] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { me, loading, refresh } = useAuth();
@@ -119,7 +124,14 @@ export default function Auth() {
     setBusy(true);
     try {
       if (mode === 'login') {
-        await api('/auth/login', { body: { email: mail, password: pw } });
+        const code = totp.trim();
+        await api('/auth/login', {
+          body: {
+            email: mail,
+            password: pw,
+            ...(code ? (useRecovery ? { recoveryCode: code } : { totpCode: code }) : {}),
+          },
+        });
         await refresh();
         const from = (location.state as { from?: string } | null)?.from;
         navigate(from ?? '/app', { replace: true });
@@ -135,6 +147,13 @@ export default function Auth() {
       if (e instanceof ApiError && e.code === 'email_not_verified') {
         setErr(ERROR_TEXT.email_not_verified);
         setNotice('resend');
+      } else if (e instanceof ApiError && e.code === 'totp_required') {
+        // First factor accepted — ask for the code rather than showing an error.
+        setNeedsTotp(true);
+      } else if (e instanceof ApiError && e.code === 'invalid_totp') {
+        setNeedsTotp(true);
+        setTotp('');
+        setErr(useRecovery ? 'That recovery code is not valid or was already used.' : 'That code is not valid. Check your authenticator and try the current code.');
       } else {
         setErr(errText(e));
       }
@@ -184,6 +203,31 @@ export default function Auth() {
         )}
         {mode === 'register' && (
           <Field label="Confirm password" type="password" value={pw2} onChange={setPw2} />
+        )}
+        {mode === 'login' && needsTotp && (
+          <div className="border hairline bg-white p-4">
+            <p className="eyebrow">Two-factor authentication</p>
+            <p className="mt-1.5 text-xs text-[--ink-soft]">
+              {useRecovery
+                ? 'Enter one of the recovery codes you saved when you enabled 2FA.'
+                : 'Enter the 6-digit code from your authenticator app.'}
+            </p>
+            <input
+              value={totp}
+              onChange={(e) => setTotp(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+              autoFocus
+              inputMode={useRecovery ? 'text' : 'numeric'}
+              placeholder={useRecovery ? 'abcde-12345' : '123456'}
+              className="mt-3 w-full border hairline bg-white px-3.5 py-2.5 text-sm font-mono2 tracking-widest outline-none focus:border-[--ink]"
+            />
+            <button
+              onClick={() => { setUseRecovery((v) => !v); setTotp(''); setErr(''); }}
+              className="mt-2 text-xs text-[--ink-soft] hover:text-[--ink] underline underline-offset-4"
+            >
+              {useRecovery ? 'Use your authenticator app instead' : 'Lost your device? Use a recovery code'}
+            </button>
+          </div>
         )}
         {err && <p className="text-sm text-[--red]">{err}</p>}
         {notice === 'resend' ? (

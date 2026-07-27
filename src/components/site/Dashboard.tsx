@@ -4,9 +4,11 @@ import {
   API_URL, ApiError, LEVEL_META, api,
   type ApiTokenInfo, type AuditEntry, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
   type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo, type ReferralInfo,
-  type StatusSummary, type SubscriptionInfo, type TeamInfo, type UsageTimeseries,
+  type StatusSummary, type SubscriptionInfo, type TeamInfo, type TwoFactorSetup, type TwoFactorStatus,
+  type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { passwordMeetsPolicy, passwordRules } from '@/lib/passwordPolicy';
 import { isOlderVersion, useCliVersion } from '@/lib/useCliVersion';
 import { AuditList, Logo, useCountUp } from './Shared';
 
@@ -204,8 +206,8 @@ function useApiHealth(): boolean | null {
   return ok;
 }
 
-type View = 'overview' | 'pipelines' | 'tokens' | 'billing' | 'team' | 'settings';
-const VIEWS: View[] = ['overview', 'pipelines', 'tokens', 'billing', 'team', 'settings'];
+type View = 'overview' | 'pipelines' | 'tokens' | 'billing' | 'team' | 'settings' | 'profile';
+const VIEWS: View[] = ['overview', 'pipelines', 'tokens', 'billing', 'team', 'settings', 'profile'];
 
 const statusStyle: Record<string, string> = {
   assigned: 'text-[#57C99A] border-[#57C99A]/40',
@@ -1219,6 +1221,309 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
   );
 }
 
+/* ---------- Profile: security settings for the signed-in user ---------- */
+
+/** Change the account password. Requires the current one — a session alone
+ *  must not be enough to lock the real owner out. */
+function ChangePasswordCard() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(false);
+
+  const save = async () => {
+    setErr(''); setDone(false);
+    if (!passwordMeetsPolicy(next)) { setErr('The new password does not meet the requirements below.'); return; }
+    if (next !== confirm) { setErr('The new passwords do not match.'); return; }
+    setBusy(true);
+    try {
+      await api('/auth/change-password', { body: { currentPassword: current, newPassword: next } });
+      setCurrent(''); setNext(''); setConfirm(''); setDone(true);
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_credentials'
+        ? 'Your current password is not correct.'
+        : e instanceof Error ? e.message : 'Could not change the password.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <CardHead title="Password" />
+      <div className="p-5 grid gap-4 max-w-md">
+        <DarkField label="Current password" type="password" value={current} onChange={setCurrent} />
+        <div>
+          <DarkField label="New password" type="password" value={next} onChange={setNext} />
+          {next && (
+            <ul className="mt-2 grid gap-1">
+              {passwordRules(next).map((r) => (
+                <li key={r.label} className={`font-mono2 text-[11px] flex items-center gap-2 ${r.ok ? 'text-[#57C99A]' : 'text-[--dark-muted]'}`}>
+                  <span aria-hidden>{r.ok ? '✓' : '○'}</span>{r.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <DarkField label="Repeat new password" type="password" value={confirm} onChange={setConfirm} />
+        {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        {done && <p className="font-mono2 text-xs text-[#57C99A]">Password changed.</p>}
+        <button onClick={save} disabled={busy || !current || !next}
+          className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30 justify-self-start">
+          {busy ? 'Saving…' : 'Change password'}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/** Small dark-theme text field, matching the dashboard's other inputs. */
+function DarkField({ label, type, value, onChange, placeholder }: {
+  label: string; type: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">{label}</span>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white" />
+    </label>
+  );
+}
+
+/** Enrol in / remove TOTP two-factor authentication. */
+function TwoFactorCard() {
+  const [status, setStatus] = useState<TwoFactorStatus | null>(null);
+  const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
+  const [code, setCode] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [disabling, setDisabling] = useState(false);
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<TwoFactorStatus>('/auth/2fa').then(setStatus).catch(() => setStatus(null));
+  }, []);
+  useEffect(load, [load]);
+
+  const begin = async () => {
+    setErr(''); setBusy(true);
+    try { setSetup(await api<TwoFactorSetup>('/auth/2fa/setup', { method: 'POST' })); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Could not start setup.'); }
+    finally { setBusy(false); }
+  };
+
+  const confirm = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const res = await api<{ recoveryCodes: string[] }>('/auth/2fa/enable', { body: { code } });
+      setCodes(res.recoveryCodes); setSetup(null); setCode(''); load();
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_totp'
+        ? 'That code is not valid — check your device clock and enter the current code.'
+        : e instanceof Error ? e.message : 'Could not enable two-factor.');
+    } finally { setBusy(false); }
+  };
+
+  const disable = async () => {
+    setErr(''); setBusy(true);
+    try {
+      await api('/auth/2fa/disable', { body: { password: pw, code } });
+      setDisabling(false); setPw(''); setCode(''); setCodes(null); load();
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_credentials'
+        ? 'That password is not correct.'
+        : e instanceof ApiError && e.code === 'invalid_totp'
+          ? 'That code is not valid. You can also use one of your recovery codes.'
+          : e instanceof Error ? e.message : 'Could not disable two-factor.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card>
+      <CardHead title="Two-factor authentication" right={
+        status && (status.enabled
+          ? <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#57C99A]/40 text-[#57C99A] px-2 py-0.5">Enabled</span>
+          : <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5">Off</span>)
+      } />
+      <div className="p-5 grid gap-4 max-w-md">
+        {status === null && <Skeleton className="h-10 w-full" />}
+
+        {/* freshly generated recovery codes — shown once */}
+        {codes && (
+          <div className="border border-[#E8B44C]/50 p-4">
+            <p className="font-mono2 text-[10px] uppercase tracking-widest text-[#E8B44C]">Recovery codes — save these now</p>
+            <p className="mt-2 text-xs text-[--dark-muted]">
+              Each code works once, if you lose your authenticator. They are shown only this one time.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-1.5 font-mono2 text-xs select-all">
+              {codes.map((c) => <span key={c} className="bg-black/40 border border-[--dark-line] px-2 py-1">{c}</span>)}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <CopyButton value={codes.join('\n')} />
+              <button onClick={() => setCodes(null)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3 py-1.5">I've saved them</button>
+            </div>
+          </div>
+        )}
+
+        {status && !status.enabled && !setup && !codes && (
+          <>
+            <p className="text-sm text-[--dark-muted]">
+              Protect your account with a code from an authenticator app (Google Authenticator, 1Password, Aegis …)
+              in addition to your password.
+            </p>
+            <button onClick={begin} disabled={busy}
+              className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30 justify-self-start">
+              {busy ? 'Starting…' : 'Set up two-factor'}
+            </button>
+          </>
+        )}
+
+        {setup && (
+          <>
+            <p className="text-sm text-[--dark-muted]">
+              Add this to your authenticator app, then enter the 6-digit code it shows to confirm.
+            </p>
+            <div>
+              <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Setup key</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <code className="flex-1 font-mono2 text-xs bg-black/40 border border-[--dark-line] px-3 py-2 break-all select-all">{setup.secret}</code>
+                <CopyButton value={setup.secret} />
+              </div>
+              <a href={setup.otpauthUri} className="mt-2 inline-block font-mono2 text-[10px] text-[#8AB8F0] hover:underline">
+                Open in your authenticator app
+              </a>
+            </div>
+            <DarkField label="6-digit code" type="text" value={code} onChange={setCode} placeholder="123456" />
+            {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={confirm} disabled={busy || code.trim().length < 6}
+                className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30">
+                {busy ? 'Verifying…' : 'Confirm & enable'}
+              </button>
+              <button onClick={() => { setSetup(null); setCode(''); setErr(''); }}
+                className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3">Cancel</button>
+            </div>
+          </>
+        )}
+
+        {status?.enabled && !disabling && !codes && (
+          <>
+            <p className="text-sm text-[--dark-muted]">
+              Two-factor is on. {status.recoveryCodesRemaining} recovery code{status.recoveryCodesRemaining === 1 ? '' : 's'} remaining.
+            </p>
+            <button onClick={() => { setDisabling(true); setErr(''); }}
+              className="font-mono2 text-[10px] uppercase tracking-widest border border-[#F07A6A]/40 text-[#F07A6A] px-4 py-2.5 hover:bg-[#F07A6A]/10 justify-self-start">
+              Turn off two-factor
+            </button>
+          </>
+        )}
+
+        {disabling && (
+          <>
+            <p className="text-sm text-[--dark-muted]">
+              Confirm with your password and a current code. Lost your device? A recovery code works here too.
+            </p>
+            <DarkField label="Password" type="password" value={pw} onChange={setPw} />
+            <DarkField label="Code or recovery code" type="text" value={code} onChange={setCode} placeholder="123456" />
+            {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={disable} disabled={busy || !pw || !code}
+                className="font-mono2 text-[10px] uppercase tracking-widest bg-[--red] text-white px-4 py-2.5 disabled:opacity-30">
+                {busy ? 'Removing…' : 'Turn off'}
+              </button>
+              <button onClick={() => { setDisabling(false); setPw(''); setCode(''); setErr(''); }}
+                className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3">Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** Permanently delete the signed-in user's own account. */
+function DeleteAccountCard({ email }: { email: string }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ready = confirmText.trim().toLowerCase() === 'delete' && pw.length > 0;
+
+  const remove = async () => {
+    if (!ready) return;
+    setBusy(true); setErr('');
+    try {
+      await api('/auth/me', { method: 'DELETE', body: { password: pw } });
+      navigate('/');
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_credentials'
+        ? 'That password is not correct.'
+        : e instanceof Error ? e.message : 'Could not delete the account.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="border-[#F07A6A]/40">
+      <CardHead title="Delete account" />
+      <div className="p-5 grid gap-4 max-w-md">
+        <p className="text-sm text-[--dark-muted]">
+          Permanently deletes <span className="font-mono2 text-[--dark-text]">{email}</span> and removes you from your teams.
+          A team where you are the only member is deleted with you. This cannot be undone.
+        </p>
+        {!open ? (
+          <button onClick={() => setOpen(true)}
+            className="font-mono2 text-[10px] uppercase tracking-widest border border-[#F07A6A]/40 text-[#F07A6A] px-4 py-2.5 hover:bg-[#F07A6A]/10 justify-self-start">
+            Delete my account
+          </button>
+        ) : (
+          <>
+            <DarkField label="Password" type="password" value={pw} onChange={setPw} />
+            <DarkField label='Type "delete" to confirm' type="text" value={confirmText} onChange={setConfirmText} placeholder="delete" />
+            {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={remove} disabled={!ready || busy}
+                className="font-mono2 text-[10px] uppercase tracking-widest bg-[--red] text-white px-4 py-2.5 disabled:opacity-30">
+                {busy ? 'Deleting…' : 'Delete permanently'}
+              </button>
+              <button onClick={() => { setOpen(false); setPw(''); setConfirmText(''); setErr(''); }}
+                className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3">Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function Profile({ email, verified }: { email: string; verified: boolean }) {
+  return (
+    <div className="grid gap-5">
+      <Card>
+        <CardHead title="Account" />
+        <div className="p-5 grid gap-2 max-w-md">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Email</span>
+            <span className="text-sm break-all">{email}</span>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Status</span>
+            <span className={`font-mono2 text-[11px] ${verified ? 'text-[#57C99A]' : 'text-[#E8B44C]'}`}>
+              {verified ? 'verified' : 'unverified'}
+            </span>
+          </div>
+        </div>
+      </Card>
+      <TwoFactorCard />
+      <ChangePasswordCard />
+      <DeleteAccountCard email={email} />
+    </div>
+  );
+}
+
 /* ---------- Shell ---------- */
 
 // Clean, consistent line icons for the sidebar — replaces the earlier grab-bag
@@ -1233,6 +1538,7 @@ function NavIcon({ name }: { name: View | 'admin' }) {
     billing: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18" /></>,
     team: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17 13.5a5.5 5.5 0 0 1 3.5 5.5" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></>,
+    profile: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></>,
     admin: <><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M9.5 12l1.8 1.8L15 10" /></>,
   };
   return (
@@ -1268,6 +1574,7 @@ export default function Dashboard() {
   const titles: Record<View, string> = {
     overview: 'Environments', pipelines: 'CI pipelines',
     tokens: 'API tokens', billing: 'Usage & billing', team: 'Team', settings: 'Settings',
+    profile: 'Your profile',
   };
 
   const teamName = teamInfo?.team.name ?? me?.team?.name ?? '—';
@@ -1353,7 +1660,16 @@ export default function Dashboard() {
             <span className="hidden sm:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted]">Plan: {planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
             <NotificationBell trialDaysLeft={trialDaysLeft} onTrialClick={() => setView('billing')} />
             <button onClick={signOut} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Sign out</button>
-            <span className="font-doto w-8 h-8 grid place-items-center border border-[--dark-line] text-xs" title={me?.user.email}>{initials}</span>
+            <button
+              onClick={() => setView('profile')}
+              title={`${me?.user.email} — your profile`}
+              aria-label="Your profile"
+              className={`font-doto w-8 h-8 grid place-items-center border text-xs transition-colors ${
+                view === 'profile' ? 'border-[--red] text-white' : 'border-[--dark-line] text-[--dark-text] hover:border-white'
+              }`}
+            >
+              {initials}
+            </button>
           </div>
         </header>
         {/* mobile nav */}
@@ -1374,6 +1690,9 @@ export default function Dashboard() {
             {view === 'team' && <Team />}
             {view === 'settings' && (
               <Settings teamName={teamName} myRole={teamInfo?.team.myRole} onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
+            )}
+            {view === 'profile' && (
+              <Profile email={me?.user.email ?? '—'} verified={me?.user.emailVerified ?? false} />
             )}
           </div>
         </main>
