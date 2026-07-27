@@ -74,6 +74,16 @@ export interface TeamInfo {
   pendingInvites: { id: string; email: string; role: string; expiresAt: string }[];
 }
 
+export interface TeamSecurity {
+  requireTwoFactor: boolean;
+  members: { email: string; twoFactorEnabled: boolean }[];
+  withoutTwoFactor: number;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[]; total: number; limit: number; offset: number;
+}
+
 export interface SessionInfo {
   id: string; createdAt: string; lastSeenAt: string;
   userAgent: string | null; ip: string | null; current: boolean;
@@ -84,6 +94,8 @@ export interface ApiTokenInfo {
   createdAt: string; lastUsedAt: string | null;
   /** null = never expires. */
   expiresAt?: string | null;
+  /** CIDR ranges the token may be used from; empty = anywhere. */
+  ipAllowlist?: string[];
   // Last CLI version seen authenticating with this token (null until a
   // versioned CLI has used it), for the "update available" hint.
   lastCliVersion?: string | null;

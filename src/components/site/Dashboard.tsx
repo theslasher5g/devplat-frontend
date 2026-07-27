@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   API_URL, ApiError, LEVEL_META, api,
-  type ApiTokenInfo, type AuditEntry, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
+  type ApiTokenInfo, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
   type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo, type ReferralInfo,
-  type SessionInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo, type TeamSummary,
+  type AuditPage, type SessionInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo,
+  type TeamSecurity, type TeamSummary,
   type TwoFactorSetup, type TwoFactorStatus,
   type UsageTimeseries,
 } from '@/lib/api';
@@ -723,6 +724,8 @@ function Tokens() {
   // 0 = never expires, which stays the default so existing workflows don't
   // change behaviour just because the option now exists.
   const [expiresInDays, setExpiresInDays] = useState(0);
+  // Comma/newline separated CIDRs; empty means the token works from anywhere.
+  const [ipAllowlist, setIpAllowlist] = useState('');
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [err, setErr] = useState('');
   const latest = useCliVersion();
@@ -743,14 +746,21 @@ function Tokens() {
     if (!label.trim()) { setErr('Please give the token a label.'); return; }
     try {
       const tok = await api<CreatedToken>('/tokens', {
-        body: { label, scope, ...(expiresInDays ? { expiresInDays } : {}) },
+        body: {
+          label, scope,
+          ...(expiresInDays ? { expiresInDays } : {}),
+          ...(ipAllowlist.trim()
+            ? { ipAllowlist: ipAllowlist.split(/[\s,]+/).map((c) => c.trim()).filter(Boolean) }
+            : {}),
+        },
       });
       setCreated(tok);
       setCreating(false);
       setLabel('');
+      setIpAllowlist('');
       load();
-    } catch {
-      setErr('Token could not be created.');
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_cidr' ? e.message : 'Token could not be created.');
     }
   };
 
@@ -792,7 +802,14 @@ function Tokens() {
                       : <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#57C99A]/30 text-[#57C99A] px-1.5 py-0.5" title="CLI is up to date">{t.lastCliVersion}</span>
                   )}
                 </p>
-                <p className="font-mono2 text-[11px] text-[--dark-muted]">{t.prefix}</p>
+                <p className="font-mono2 text-[11px] text-[--dark-muted]">
+                  {t.prefix}
+                  {t.ipAllowlist && t.ipAllowlist.length > 0 && (
+                    <span className="ml-2 text-[#8AB8F0]" title={`Only usable from: ${t.ipAllowlist.join(', ')}`}>
+                      · IP-restricted ({t.ipAllowlist.length})
+                    </span>
+                  )}
+                </p>
               </div>
               <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">Scope: {t.scope}</span>
               <div className="hidden sm:flex items-center gap-2" title={`${t.runsTotal ?? 0} runs in the last 14 days`}>
@@ -845,6 +862,18 @@ function Tokens() {
             </div>
             <button onClick={create} className="font-mono2 text-[10px] border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark]">Create</button>
           </div>
+          <label className="block mt-4 max-w-xl">
+            <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">
+              Restrict to IP ranges <span className="normal-case tracking-normal">(optional)</span>
+            </span>
+            <input value={ipAllowlist} onChange={(e) => setIpAllowlist(e.target.value)}
+              placeholder="203.0.113.0/24, 198.51.100.7"
+              className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
+            <span className="mt-1.5 block font-mono2 text-[10px] text-[--dark-muted]">
+              Comma-separated addresses or CIDR ranges. Leave empty to allow any address — a leaked
+              token is far less useful when it only works from your CI's egress range.
+            </span>
+          </label>
         </Card>
       )}
       {created && (
@@ -1042,11 +1071,200 @@ function Billing() {
 
 /* ---------- Team: real data ---------- */
 
+/** Team security policy: require 2FA for everyone, with a compliance list so
+ *  an owner can chase people rather than discovering the gap via a lockout. */
+function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
+  const [sec, setSec] = useState<TeamSecurity | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const load = useCallback(() => {
+    api<TeamSecurity>('/teams/me/security').then(setSec).catch(() => setSec(null));
+  }, []);
+  useEffect(load, [load]);
+
+  const toggle = async () => {
+    if (!sec) return;
+    setBusy(true); setErr('');
+    try {
+      await api('/teams/me/security', { method: 'PATCH', body: { requireTwoFactor: !sec.requireTwoFactor } });
+      load();
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'enable_own_2fa_first'
+        ? 'Set up two-factor on your own account first — otherwise you would lock yourself out of this team.'
+        : e instanceof Error ? e.message : 'Could not change the policy.');
+    } finally { setBusy(false); }
+  };
+
+  if (!sec) return null;
+
+  return (
+    <Card>
+      <CardHead title="Security policy" right={
+        <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${
+          sec.requireTwoFactor ? 'border-[#57C99A]/40 text-[#57C99A]' : 'border-[--dark-line] text-[--dark-muted]'
+        }`}>
+          2FA {sec.requireTwoFactor ? 'required' : 'optional'}
+        </span>
+      } />
+      <div className="p-5 grid gap-4">
+        <p className="text-sm text-[--dark-muted] max-w-[70ch]">
+          {sec.requireTwoFactor
+            ? 'Members without two-factor authentication cannot access this team\'s environments or tokens. They can still sign in and enrol from their profile.'
+            : 'Two-factor authentication is currently optional for members. Requiring it blocks access to this team until each member enrols.'}
+        </p>
+
+        {sec.withoutTwoFactor > 0 && (
+          <div className={`border p-4 ${sec.requireTwoFactor ? 'border-[#F07A6A]/40' : 'border-[#E8B44C]/40'}`}>
+            <p className={`font-mono2 text-[10px] uppercase tracking-widest ${sec.requireTwoFactor ? 'text-[#F07A6A]' : 'text-[#E8B44C]'}`}>
+              {sec.withoutTwoFactor} member{sec.withoutTwoFactor === 1 ? '' : 's'} without two-factor
+            </p>
+            <ul className="mt-2 grid gap-1">
+              {sec.members.filter((m) => !m.twoFactorEnabled).map((m) => (
+                <li key={m.email} className="font-mono2 text-[11px] text-[--dark-muted] break-all">{m.email}</li>
+              ))}
+            </ul>
+            {sec.requireTwoFactor && (
+              <p className="mt-2 text-xs text-[--dark-muted]">They currently have no access to this team.</p>
+            )}
+          </div>
+        )}
+
+        {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        {isOwner ? (
+          <button onClick={toggle} disabled={busy}
+            className={`font-mono2 text-[10px] uppercase tracking-widest px-4 py-2.5 justify-self-start disabled:opacity-30 ${
+              sec.requireTwoFactor
+                ? 'border border-[--dark-line] hover:border-white'
+                : 'border border-white hover:bg-white hover:text-[--dark]'
+            }`}>
+            {busy ? 'Saving…' : sec.requireTwoFactor ? 'Make two-factor optional' : 'Require two-factor for everyone'}
+          </button>
+        ) : (
+          <p className="font-mono2 text-[10px] text-[--dark-muted]">Only the team owner can change this.</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/** Filterable, exportable team audit trail. */
+function AuditLogCard() {
+  const [page, setPage] = useState<AuditPage | null>(null);
+  const [actions, setActions] = useState<string[]>([]);
+  const [action, setAction] = useState('');
+  const [actor, setActor] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [offset, setOffset] = useState(0);
+  const LIMIT = 25;
+
+  const params = useCallback(() => {
+    const p = new URLSearchParams();
+    if (action) p.set('action', action);
+    if (actor.trim()) p.set('actor', actor.trim());
+    if (from) p.set('from', from);
+    // A date input means "that whole day"; the API's `to` is exclusive.
+    if (to) p.set('to', new Date(new Date(to).getTime() + 86_400_000).toISOString().slice(0, 10));
+    return p;
+  }, [action, actor, from, to]);
+
+  const load = useCallback(() => {
+    const p = params();
+    p.set('limit', String(LIMIT));
+    p.set('offset', String(offset));
+    api<AuditPage>(`/teams/me/audit?${p}`).then(setPage).catch(() => setPage(null));
+  }, [params, offset]);
+  useEffect(load, [load]);
+  useEffect(() => {
+    api<{ actions: string[] }>('/teams/me/audit/actions').then((d) => setActions(d.actions)).catch(() => {});
+  }, []);
+
+  const exportAs = async (format: 'csv' | 'json') => {
+    const p = params();
+    p.set('format', format);
+    const res = await fetch(`${API_URL}/teams/me/audit/export?${p}`, { credentials: 'include' });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `devplat-audit-${new Date().toISOString().slice(0, 10)}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const reset = () => { setAction(''); setActor(''); setFrom(''); setTo(''); setOffset(0); };
+  const filtered = !!(action || actor || from || to);
+  const inputCls = 'bg-transparent border border-[--dark-line] px-2.5 py-1.5 text-xs outline-none focus:border-white';
+
+  return (
+    <Card>
+      <CardHead title="Activity log" right={
+        <span className="flex items-center gap-2">
+          <button onClick={() => exportAs('csv')} className="font-mono2 text-[10px] border border-[--dark-line] px-2.5 py-1 hover:border-white">CSV</button>
+          <button onClick={() => exportAs('json')} className="font-mono2 text-[10px] border border-[--dark-line] px-2.5 py-1 hover:border-white">JSON</button>
+        </span>
+      } />
+      <div className="px-5 py-3 border-b border-[--dark-line] flex flex-wrap items-end gap-2">
+        <label className="grid gap-1">
+          <span className="font-mono2 text-[9px] uppercase tracking-widest text-[--dark-muted]">Action</span>
+          <select value={action} onChange={(e) => { setAction(e.target.value); setOffset(0); }} className={`${inputCls} bg-[--dark]`}>
+            <option value="">All</option>
+            {actions.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1">
+          <span className="font-mono2 text-[9px] uppercase tracking-widest text-[--dark-muted]">Actor</span>
+          <input value={actor} onChange={(e) => { setActor(e.target.value); setOffset(0); }} placeholder="email or domain" className={`${inputCls} w-40`} />
+        </label>
+        <label className="grid gap-1">
+          <span className="font-mono2 text-[9px] uppercase tracking-widest text-[--dark-muted]">From</span>
+          <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setOffset(0); }} className={inputCls} />
+        </label>
+        <label className="grid gap-1">
+          <span className="font-mono2 text-[9px] uppercase tracking-widest text-[--dark-muted]">To</span>
+          <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setOffset(0); }} className={inputCls} />
+        </label>
+        {filtered && (
+          <button onClick={reset} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-2 py-1.5">Clear</button>
+        )}
+        {page && (
+          <span className="ml-auto font-mono2 text-[10px] text-[--dark-muted]">
+            {page.total} entr{page.total === 1 ? 'y' : 'ies'}
+          </span>
+        )}
+      </div>
+
+      {page === null ? (
+        <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>
+      ) : page.entries.length === 0 ? (
+        <p className="px-5 py-6 font-mono2 text-xs text-[--dark-muted]">
+          {filtered ? 'No entries match these filters.' : 'No activity recorded yet.'}
+        </p>
+      ) : (
+        <AuditList entries={page.entries} />
+      )}
+
+      {page && page.total > LIMIT && (
+        <div className="px-5 py-3 border-t border-[--dark-line] flex items-center justify-between font-mono2 text-[10px]">
+          <button onClick={() => setOffset(Math.max(0, offset - LIMIT))} disabled={offset === 0}
+            className="text-[--dark-muted] hover:text-white disabled:opacity-30">← Newer</button>
+          <span className="text-[--dark-muted]">{offset + 1}–{Math.min(offset + LIMIT, page.total)} of {page.total}</span>
+          <button onClick={() => setOffset(offset + LIMIT)} disabled={offset + LIMIT >= page.total}
+            className="text-[--dark-muted] hover:text-white disabled:opacity-30">Older →</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 type TeamMember = TeamInfo['members'][number];
 
 function Team() {
   const [info, setInfo] = useState<TeamInfo | null>(null);
-  const [audit, setAudit] = useState<AuditEntry[] | null>(null);
   const [inviteMail, setInviteMail] = useState('');
   const [inviteRole, setInviteRole] = useState<'developer' | 'admin'>('developer');
   const [inviting, setInviting] = useState(false);
@@ -1117,13 +1335,6 @@ function Team() {
       setLeaving(false);
     } finally { setBusy(false); }
   };
-
-  // The activity log is admin/owner-only server-side; fetch once we know the role.
-  useEffect(() => {
-    if (canManage && audit === null) {
-      api<{ entries: AuditEntry[] }>('/teams/me/audit').then((d) => setAudit(d.entries)).catch(() => setAudit([]));
-    }
-  }, [canManage, audit]);
 
   const invite = async () => {
     setErr('');
@@ -1231,12 +1442,8 @@ function Team() {
             </div>
           </Card>
         )}
-        {canManage && audit && audit.length > 0 && (
-          <Card>
-            <CardHead title="Activity log" right={<span className="font-mono2 text-[10px] text-[--dark-muted]">recent</span>} />
-            <AuditList entries={audit} />
-          </Card>
-        )}
+        {canManage && <TeamSecurityCard isOwner={!!isOwner} />}
+        {canManage && <AuditLogCard />}
 
         {/* Leaving is self-service for everyone except the owner, who would
             orphan the team's billing — they transfer ownership or delete it. */}
