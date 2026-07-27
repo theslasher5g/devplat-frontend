@@ -9,8 +9,8 @@ export function Preise({ go }: { go: (p: Page) => void }) {
     ['What counts as a "parallel environment"?', 'An environment is a microVM with its own Docker daemon — typically one test run (one CI job or one local session), no matter how many containers run inside it. 5 parallel environments means: 5 CI jobs can run integration tests at the same time; the 6th waits briefly in the queue.'],
     ['What happens once the limit is reached?', 'Nothing dramatic: the next run is queued and starts as soon as an environment frees up. No overage fees, no invoice with an asterisk. The dashboard shows your utilization so you know exactly when an upgrade pays off.'],
     ['Do I need a Docker subscription?', 'No. Neither Docker Desktop nor a Docker Hub plan. Our cache serves the image pulls; your CI doesn\'t even need a Docker daemon.'],
-    ['Where exactly do my containers run?', 'On our own hardware in Basel, Switzerland. No hyperscaler, no sub-sub-processors. Details on the Privacy & Legal page.'],
-    ['How does billing work?', 'Monthly or annually by credit card or invoice through our payment processor (merchant of record) — including correct VAT handling for EU customers via reverse charge.'],
+    ['Where exactly do my containers run?', 'Your test containers run on our own hardware in Basel, Switzerland — no hyperscaler in that path. The control plane (accounts, billing metadata) is hosted with Infomaniak, also in Switzerland. Our full sub-processor list is in the Privacy Policy.'],
+    ['How does billing work?', 'Monthly or annually in CHF by credit card, processed by Stripe. Prices are shown excluding VAT — we are a Swiss small business and not currently VAT-registered, so no VAT is added.'],
   ];
   return (
     <main>

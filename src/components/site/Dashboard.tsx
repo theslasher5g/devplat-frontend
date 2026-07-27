@@ -4,7 +4,8 @@ import {
   API_URL, ApiError, LEVEL_META, api,
   type ApiTokenInfo, type AuditEntry, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
   type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo, type ReferralInfo,
-  type StatusSummary, type SubscriptionInfo, type TeamInfo, type TeamSummary, type TwoFactorSetup, type TwoFactorStatus,
+  type SessionInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo, type TeamSummary,
+  type TwoFactorSetup, type TwoFactorStatus,
   type UsageTimeseries,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -719,6 +720,9 @@ function Tokens() {
   const [creating, setCreating] = useState(false);
   const [label, setLabel] = useState('');
   const [scope, setScope] = useState<'ci:run' | 'dev:run'>('ci:run');
+  // 0 = never expires, which stays the default so existing workflows don't
+  // change behaviour just because the option now exists.
+  const [expiresInDays, setExpiresInDays] = useState(0);
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [err, setErr] = useState('');
   const latest = useCliVersion();
@@ -738,7 +742,9 @@ function Tokens() {
     setErr('');
     if (!label.trim()) { setErr('Please give the token a label.'); return; }
     try {
-      const tok = await api<CreatedToken>('/tokens', { body: { label, scope } });
+      const tok = await api<CreatedToken>('/tokens', {
+        body: { label, scope, ...(expiresInDays ? { expiresInDays } : {}) },
+      });
       setCreated(tok);
       setCreating(false);
       setLabel('');
@@ -794,7 +800,16 @@ function Tokens() {
                   ? <><Sparkline data={t.usage} /><span className="font-mono2 text-[10px] text-[--dark-muted]">{t.runsTotal} · 14d</span></>
                   : <span className="font-mono2 text-[11px] text-[--dark-muted]">{fmtAgo(t.lastUsedAt)}</span>}
               </div>
-              <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">{fmtDate(t.createdAt)}</span>
+              <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">
+                {(() => {
+                  if (!t.expiresAt) return <>created {fmtDate(t.createdAt)}</>;
+                  const days = Math.ceil((new Date(t.expiresAt).getTime() - Date.now()) / 86_400_000);
+                  if (days <= 0) return <span className="text-[#F07A6A]">expired</span>;
+                  // Flag tokens about to lapse: a CI pipeline breaking at 3am
+                  // because a token quietly aged out is worth warning about.
+                  return <span className={days <= 14 ? 'text-[#E8B44C]' : undefined}>expires in {days}d</span>;
+                })()}
+              </span>
               <button onClick={() => revoke(t.id)} className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10">Revoke</button>
             </div>
           ))}
@@ -817,6 +832,16 @@ function Tokens() {
                   <button key={s} onClick={() => setScope(s)} className={`px-3 py-2 border ${scope === s ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted]'}`}>{s}</button>
                 ))}
               </div>
+            </div>
+            <div>
+              <span className="font-mono2 text-[10px] text-[--dark-muted] uppercase tracking-widest">Expires</span>
+              <select value={expiresInDays} onChange={(e) => setExpiresInDays(Number(e.target.value))}
+                className="mt-1.5 bg-[--dark] border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white">
+                <option value={0}>Never</option>
+                <option value={30}>In 30 days</option>
+                <option value={90}>In 90 days</option>
+                <option value={365}>In 1 year</option>
+              </select>
             </div>
             <button onClick={create} className="font-mono2 text-[10px] border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark]">Create</button>
           </div>
@@ -1864,6 +1889,89 @@ function ChangeEmailCard({ email }: { email: string }) {
   );
 }
 
+/** Turns a user-agent string into something a human recognises. Deliberately
+ *  rough — it only has to be good enough to answer "is that me?". */
+function describeDevice(ua: string | null): string {
+  if (!ua) return 'Unknown device';
+  const browser = /Edg\//.test(ua) ? 'Edge'
+    : /OPR\//.test(ua) ? 'Opera'
+      : /Chrome\//.test(ua) ? 'Chrome'
+        : /Safari\//.test(ua) ? 'Safari'
+          : /Firefox\//.test(ua) ? 'Firefox'
+            : /curl|wget|devplat/i.test(ua) ? 'CLI' : 'Browser';
+  const os = /Windows/.test(ua) ? 'Windows'
+    : /Macintosh|Mac OS/.test(ua) ? 'macOS'
+      : /Android/.test(ua) ? 'Android'
+        : /iPhone|iPad/.test(ua) ? 'iOS'
+          : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
+
+/** Active sessions, so a user can spot and evict a device that isn't theirs. */
+function SessionsCard() {
+  const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = useCallback(() => {
+    api<{ sessions: SessionInfo[] }>('/auth/sessions').then((d) => setSessions(d.sessions)).catch(() => setSessions([]));
+  }, []);
+  useEffect(load, [load]);
+
+  const revoke = async (id: string) => {
+    setBusy(id); setErr('');
+    try { await api(`/auth/sessions/${id}`, { method: 'DELETE' }); load(); }
+    catch { setErr('Could not sign that session out.'); }
+    finally { setBusy(''); }
+  };
+
+  const revokeOthers = async () => {
+    setBusy('others'); setErr('');
+    try { await api('/auth/sessions/revoke-others', { method: 'POST' }); load(); }
+    catch { setErr('Could not sign the other sessions out.'); }
+    finally { setBusy(''); }
+  };
+
+  const others = (sessions ?? []).filter((s) => !s.current).length;
+
+  return (
+    <Card>
+      <CardHead title="Active sessions" right={
+        others > 0 ? (
+          <button onClick={revokeOthers} disabled={busy === 'others'}
+            className="font-mono2 text-[10px] uppercase tracking-wider text-[#F07A6A]/80 hover:text-[#F07A6A] disabled:opacity-40">
+            {busy === 'others' ? 'Signing out…' : `Sign out ${others} other${others === 1 ? '' : 's'}`}
+          </button>
+        ) : undefined
+      } />
+      <div className="divide-y divide-[--dark-line]">
+        {sessions === null && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+        {sessions?.length === 0 && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">No active sessions.</p>}
+        {sessions?.map((s) => (
+          <div key={s.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm flex items-center gap-2">
+                {describeDevice(s.userAgent)}
+                {s.current && <span className="font-mono2 text-[9px] uppercase tracking-wider border border-[#57C99A]/40 text-[#57C99A] px-1.5 py-0.5">this device</span>}
+              </p>
+              <p className="font-mono2 text-[10px] text-[--dark-muted]">
+                {s.ip ?? 'unknown IP'} · last active {fmtAgo(s.lastSeenAt)} · signed in {fmtDate(s.createdAt)}
+              </p>
+            </div>
+            {!s.current && (
+              <button onClick={() => revoke(s.id)} disabled={busy === s.id}
+                className="font-mono2 text-[10px] uppercase tracking-wider text-[#F07A6A]/80 hover:text-[#F07A6A] border border-transparent hover:border-[#F07A6A]/40 px-2 py-1 shrink-0 disabled:opacity-40">
+                {busy === s.id ? '…' : 'Sign out'}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {err && <p className="px-5 pb-4 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+    </Card>
+  );
+}
+
 /** Download everything we hold about this account (GDPR Art. 15/20). */
 function DataExportCard() {
   const [busy, setBusy] = useState(false);
@@ -1929,6 +2037,7 @@ function Profile({ email, verified }: { email: string; verified: boolean }) {
       <ChangeEmailCard email={email} />
       <TwoFactorCard />
       <ChangePasswordCard />
+      <SessionsCard />
       <DataExportCard />
       <DeleteAccountCard email={email} />
     </div>

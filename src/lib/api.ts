@@ -74,9 +74,16 @@ export interface TeamInfo {
   pendingInvites: { id: string; email: string; role: string; expiresAt: string }[];
 }
 
+export interface SessionInfo {
+  id: string; createdAt: string; lastSeenAt: string;
+  userAgent: string | null; ip: string | null; current: boolean;
+}
+
 export interface ApiTokenInfo {
   id: string; label: string; prefix: string; scope: string;
   createdAt: string; lastUsedAt: string | null;
+  /** null = never expires. */
+  expiresAt?: string | null;
   // Last CLI version seen authenticating with this token (null until a
   // versioned CLI has used it), for the "update available" hint.
   lastCliVersion?: string | null;
