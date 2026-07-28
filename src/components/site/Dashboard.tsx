@@ -1086,6 +1086,7 @@ function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
   const [sec, setSec] = useState<TeamSecurity | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(() => {
     api<TeamSecurity>('/teams/me/security').then(setSec).catch(() => setSec(null));
@@ -1094,9 +1095,19 @@ function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
 
   const toggle = async () => {
     if (!sec) return;
-    setBusy(true); setErr('');
+    setBusy(true); setErr(''); setNotice('');
     try {
-      await api('/teams/me/security', { method: 'PATCH', body: { requireTwoFactor: !sec.requireTwoFactor } });
+      const res = await api<{ requireTwoFactor: boolean; notified: number }>(
+        '/teams/me/security', { method: 'PATCH', body: { requireTwoFactor: !sec.requireTwoFactor } },
+      );
+      // Say who was mailed. Turning this on locks people out mid-task, so the
+      // owner should know it wasn't done silently — and how many people are
+      // now expecting to act on it.
+      setNotice(res.requireTwoFactor
+        ? res.notified > 0
+          ? `Two-factor is now required. ${res.notified} member${res.notified === 1 ? '' : 's'} without it ${res.notified === 1 ? 'was' : 'were'} emailed instructions.`
+          : 'Two-factor is now required. Everyone on the team already has it.'
+        : 'Two-factor is optional again.');
       load();
     } catch (e) {
       setErr(e instanceof ApiError && e.code === 'enable_own_2fa_first'
@@ -1140,6 +1151,13 @@ function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
         )}
 
         {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        {notice && <p className="font-mono2 text-xs text-[#57C99A]">{notice}</p>}
+        {isOwner && !sec.requireTwoFactor && sec.withoutTwoFactor > 0 && (
+          <p className="font-mono2 text-[11px] text-[--dark-muted] max-w-[70ch]">
+            Turning this on takes effect immediately. The {sec.withoutTwoFactor} member{sec.withoutTwoFactor === 1 ? '' : 's'} above
+            will be emailed instructions and will be asked to enrol the next time they open the dashboard.
+          </p>
+        )}
         {isOwner ? (
           <button onClick={toggle} disabled={busy}
             className={`font-mono2 text-[10px] uppercase tracking-widest px-4 py-2.5 justify-self-start disabled:opacity-30 ${
