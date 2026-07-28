@@ -69,6 +69,11 @@ export interface TeamInfo {
   team: {
     id: string; name: string; planTier: string; planLabel: string; parallelLimit: number;
     trialEndsAt: string; createdAt: string; myRole: 'owner' | 'admin' | 'developer';
+    /** Seat cap for the plan; null means uncapped. */
+    maxMembers: number | null;
+    /** Members plus outstanding invites — invites count, so a batch of them
+     *  can't quietly take a team over its plan once they're all accepted. */
+    seatsUsed: number;
   };
   members: { userId: string; email: string; role: string; joinedAt: string }[];
   pendingInvites: { id: string; email: string; role: string; expiresAt: string }[];

@@ -1368,13 +1368,40 @@ function Team() {
   if (err && !info) return <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>;
   if (!info) return <p className="font-mono2 text-xs text-[--dark-muted]">Loading …</p>;
 
+  // The server is still the authority (seatLimitError); these only decide what
+  // the UI offers, so nobody is invited to fill in a form that cannot succeed.
+  const seatCap = info.team.maxMembers;
+  const seatsLeft = seatCap === null ? Infinity : Math.max(seatCap - info.team.seatsUsed, 0);
+  const singleSeatPlan = seatCap === 1;
+  const goBilling = () => navigate('/app/billing');
+
   return (
     <div className="grid gap-5 max-w-4xl">
       <div className="grid gap-5">
         <Card>
-          <CardHead title={`Members (${info.members.length})`} right={
-            canManage ? <button onClick={() => setInviting((v) => !v)} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">+ Invite</button> : undefined
-          } />
+          <CardHead
+            title={`Members (${info.members.length}${seatCap ? ` / ${seatCap}` : ''})`}
+            right={
+              !canManage ? undefined
+                : seatsLeft === 0
+                  // Offering a form whose only possible outcome is an error is
+                  // worse than not offering it: the seat cap is a property of
+                  // the plan, so the honest control is the one that fixes it.
+                  ? (
+                    <button onClick={() => goBilling()} className="font-mono2 text-[10px] border border-[#E8B44C]/50 text-[#E8B44C] px-3 py-1.5 hover:border-[#E8B44C]">
+                      {singleSeatPlan ? 'Upgrade to invite' : 'No seats left — upgrade'}
+                    </button>
+                  )
+                  : <button onClick={() => setInviting((v) => !v)} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">+ Invite</button>
+            }
+          />
+          {canManage && seatsLeft === 0 && (
+            <p className="px-5 py-3 border-b border-[--dark-line] font-mono2 text-[11px] text-[--dark-muted] leading-relaxed">
+              {singleSeatPlan
+                ? `${info.team.planLabel} is a single-seat plan — it covers you alone. Team (10 seats) and Scale (30 seats) can invite people.`
+                : `All ${seatCap} seats on ${info.team.planLabel} are taken (${info.members.length} member${info.members.length === 1 ? '' : 's'}, ${info.pendingInvites.length} pending invite${info.pendingInvites.length === 1 ? '' : 's'}). Remove someone, revoke an invite, or move up a plan.`}
+            </p>
+          )}
           <div className="divide-y divide-[--dark-line]">
             {info.members.map((m) => {
               const isSelf = m.userId === myUserId;
@@ -1640,6 +1667,65 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
  *  a new one. Renders as a plain label when there's only one team and nothing
  *  to switch to — but still offers "create", since that's the only escape from
  *  the teamless state. */
+/**
+ * Avatar with an account menu behind it.
+ *
+ * Replaces a bare "Sign out" link that sat between the notification bell and
+ * the avatar — a rare and irreversible action wedged between the two most
+ * clicked controls, and a third mismatched shape in a row of otherwise square
+ * icons.
+ */
+function AccountMenu({ email, initials, active, onProfile, onBilling, onSignOut }: {
+  email: string; initials: string; active: boolean;
+  onProfile: () => void; onBilling: () => void; onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const item = 'w-full text-left px-4 py-2.5 text-sm text-[--dark-muted] hover:text-white hover:bg-white/[0.03] transition-colors';
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title={email}
+        aria-label="Account menu"
+        aria-expanded={open}
+        className={`font-doto w-8 h-8 grid place-items-center border text-xs transition-colors ${
+          active || open ? 'border-[--red] text-white' : 'border-[--dark-line] text-[--dark-text] hover:border-white'
+        }`}
+      >
+        {initials}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute right-0 mt-2 z-40 w-60 bg-[--dark-card] border border-[--dark-line] shadow-xl">
+            <p className="px-4 py-3 border-b border-[--dark-line] font-mono2 text-[11px] text-[--dark-muted] truncate" title={email}>
+              {email}
+            </p>
+            <button className={item} onClick={() => { onProfile(); setOpen(false); }}>Profile &amp; security</button>
+            <button className={item} onClick={() => { onBilling(); setOpen(false); }}>Usage &amp; billing</button>
+            {/* Separated by a rule: signing out is not in the same class of
+                action as navigating somewhere. */}
+            <button
+              className={`${item} border-t border-[--dark-line] hover:text-[#F07A6A]`}
+              onClick={() => { onSignOut(); setOpen(false); }}
+            >
+              Sign out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: () => void }) {
   const [teams, setTeams] = useState<TeamSummary[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -2530,20 +2616,19 @@ export default function Dashboard() {
             )}
             <span className="hidden xl:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted] whitespace-nowrap">{planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
             <NotificationBell trialDaysLeft={trialDaysLeft} onTrialClick={() => setView('billing')} />
-            {/* On a phone this lives in the drawer instead — the header has
-                room for the team you are in and the way into your profile,
-                and little else. */}
-            <button onClick={signOut} className="hidden sm:block font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Sign out</button>
-            <button
-              onClick={() => setView('profile')}
-              title={`${me?.user.email} — your profile`}
-              aria-label="Your profile"
-              className={`font-doto w-8 h-8 grid place-items-center border text-xs transition-colors ${
-                view === 'profile' ? 'border-[--red] text-white' : 'border-[--dark-line] text-[--dark-text] hover:border-white'
-              }`}
-            >
-              {initials}
-            </button>
+            {/* Account menu. "Sign out" used to sit as loose text between the
+                bell and the avatar, which put a rare, destructive action in the
+                middle of the two things people actually click, and left three
+                mismatched shapes in a row. It now lives behind the avatar,
+                where every other product puts it. */}
+            <AccountMenu
+              email={me?.user.email ?? ''}
+              initials={initials}
+              active={view === 'profile'}
+              onProfile={() => setView('profile')}
+              onBilling={() => setView('billing')}
+              onSignOut={signOut}
+            />
           </div>
         </header>
         {/* mobile nav */}

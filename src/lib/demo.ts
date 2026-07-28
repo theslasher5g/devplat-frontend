@@ -22,14 +22,18 @@ export const liveLog = [
 export const tiers = [
   {
     name: 'Solo', chf: 19, envs: 2, vcpu: 2, ramGb: 4, tagline: 'For solo developers and side projects.',
-    features: ['2 parallel environments', 'up to 2 vCPU / 4 GB per environment', 'Shared image cache', 'CLI + CI', 'Community support'],
+    // The seat count is stated first because it's the line that decides
+    // whether a plan fits at all, and it was previously nowhere on the page —
+    // people found out only when an invite was rejected. Mirrors the
+    // plans.max_members values in the backend (migration 031).
+    features: ['1 seat — no team invites', '2 parallel environments', 'up to 2 vCPU / 4 GB per environment', 'Shared image cache', 'CLI + CI', 'Community support'],
   },
   {
     name: 'Team', chf: 79, envs: 5, vcpu: 4, ramGb: 8, tagline: 'For teams with an active CI pipeline.', hot: true,
-    features: ['5 parallel environments', 'up to 4 vCPU / 8 GB per environment', 'Custom images in the cache', 'Team management & roles', 'DPA included', 'Email support < 24 h'],
+    features: ['Up to 10 seats', '5 parallel environments', 'up to 4 vCPU / 8 GB per environment', 'Custom images in the cache', 'Team management & roles', 'Email support < 24 h'],
   },
   {
     name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12, tagline: 'For multiple teams and monorepos.',
-    features: ['8 parallel environments', 'up to 6 vCPU / 12 GB per environment', 'Priority scheduling', 'Audit log', 'SSO (SAML) — coming soon', 'Latency SLA 99.5 %', 'Support < 4 h'],
+    features: ['Up to 30 seats', '8 parallel environments', 'up to 6 vCPU / 12 GB per environment', 'Priority scheduling', 'Audit log', 'SSO (SAML) — coming soon', 'Latency SLA 99.5 %', 'Support < 4 h'],
   },
 ];
