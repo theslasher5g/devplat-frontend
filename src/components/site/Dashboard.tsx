@@ -737,6 +737,8 @@ function Tokens() {
   const [ipAllowlist, setIpAllowlist] = useState('');
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [err, setErr] = useState('');
+  const [revokeTarget, setRevokeTarget] = useState<ApiTokenInfo | null>(null);
+  const [revoking, setRevoking] = useState(false);
   const latest = useCliVersion();
   // The oldest CLI version any token has reported that's behind latest — drives
   // the one-line "update available" banner. null when every seen CLI is current.
@@ -774,13 +776,16 @@ function Tokens() {
   };
 
   const revoke = async (id: string) => {
-    setErr('');
+    setErr(''); setRevoking(true);
     try {
       await api(`/tokens/${id}`, { method: 'DELETE' });
       if (created?.id === id) setCreated(null);
+      setRevokeTarget(null);
       load();
     } catch {
       setErr('Could not revoke this token — please try again.');
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -836,7 +841,7 @@ function Tokens() {
                   return <span className={days <= 14 ? 'text-[#E8B44C]' : undefined}>expires in {days}d</span>;
                 })()}
               </span>
-              <button onClick={() => revoke(t.id)} className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10">Revoke</button>
+              <button onClick={() => setRevokeTarget(t)} className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10">Revoke</button>
             </div>
           ))}
         </div>
@@ -895,6 +900,20 @@ function Tokens() {
           <p className="text-xs text-[--dark-muted] mt-2">Copy this token into your CI secret. For security reasons we never show it again.</p>
           <button onClick={() => setCreated(null)} className="mt-3 font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Got it</button>
         </Card>
+      )}
+      {revokeTarget && (
+        <ConfirmDialog
+          title={`Revoke "${revokeTarget.label}"?`}
+          body={
+            revokeTarget.usage && revokeTarget.usage.some((n) => n > 0)
+              ? `This token has run ${revokeTarget.runsTotal} environment${revokeTarget.runsTotal === 1 ? '' : 's'} in the last 14 days — it looks active. Anything using it (a CI pipeline, a script) will start failing immediately. This can't be undone; you'd need to create a new token and update wherever this one is configured.`
+              : "Anything using it will start failing immediately. This can't be undone; you'd need to create a new token and update wherever this one is configured."
+          }
+          confirmLabel="Revoke token"
+          busy={revoking}
+          onCancel={() => setRevokeTarget(null)}
+          onConfirm={() => revoke(revokeTarget.id)}
+        />
       )}
     </div>
   );
@@ -1976,6 +1995,8 @@ function TwoFactorCard() {
   const [code, setCode] = useState('');
   const [codes, setCodes] = useState<string[] | null>(null);
   const [disabling, setDisabling] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenCode, setRegenCode] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -2001,6 +2022,18 @@ function TwoFactorCard() {
       setErr(e instanceof ApiError && e.code === 'invalid_totp'
         ? 'That code is not valid — check your device clock and enter the current code.'
         : e instanceof Error ? e.message : 'Could not enable two-factor.');
+    } finally { setBusy(false); }
+  };
+
+  const regenerate = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const res = await api<{ recoveryCodes: string[] }>('/auth/2fa/recovery-codes/regenerate', { body: { code: regenCode } });
+      setCodes(res.recoveryCodes); setRegenerating(false); setRegenCode(''); load();
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_totp'
+        ? 'That code is not valid — check your device clock and enter the current code.'
+        : e instanceof Error ? e.message : 'Could not regenerate codes.');
     } finally { setBusy(false); }
   };
 
@@ -2091,15 +2124,45 @@ function TwoFactorCard() {
           </>
         )}
 
-        {status?.enabled && !disabling && !codes && (
+        {status?.enabled && !disabling && !regenerating && !codes && (
           <>
             <p className="text-sm text-[--dark-muted]">
               Two-factor is on. {status.recoveryCodesRemaining} recovery code{status.recoveryCodesRemaining === 1 ? '' : 's'} remaining.
             </p>
-            <button onClick={() => { setDisabling(true); setErr(''); }}
-              className="font-mono2 text-[10px] uppercase tracking-widest border border-[#F07A6A]/40 text-[#F07A6A] px-4 py-2.5 hover:bg-[#F07A6A]/10 justify-self-start">
-              Turn off two-factor
-            </button>
+            {status.recoveryCodesRemaining <= 2 && (
+              <p className="font-mono2 text-[11px] text-[#E8B44C]">
+                Running low — regenerate now, before you actually need one.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => { setRegenerating(true); setErr(''); }}
+                className="font-mono2 text-[10px] uppercase tracking-widest border border-[--dark-line] px-4 py-2.5 hover:border-white justify-self-start">
+                Regenerate recovery codes
+              </button>
+              <button onClick={() => { setDisabling(true); setErr(''); }}
+                className="font-mono2 text-[10px] uppercase tracking-widest border border-[#F07A6A]/40 text-[#F07A6A] px-4 py-2.5 hover:bg-[#F07A6A]/10 justify-self-start">
+                Turn off two-factor
+              </button>
+            </div>
+          </>
+        )}
+
+        {regenerating && (
+          <>
+            <p className="text-sm text-[--dark-muted]">
+              Enter a current code from your authenticator. This replaces every existing recovery
+              code — including ones you haven't used yet — with ten new ones.
+            </p>
+            <DarkField label="6-digit code" type="text" value={regenCode} onChange={setRegenCode} placeholder="123456" />
+            {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={regenerate} disabled={busy || regenCode.trim().length < 6}
+                className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30">
+                {busy ? 'Verifying…' : 'Regenerate'}
+              </button>
+              <button onClick={() => { setRegenerating(false); setRegenCode(''); setErr(''); }}
+                className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-3">Cancel</button>
+            </div>
           </>
         )}
 

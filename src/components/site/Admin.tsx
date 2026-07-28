@@ -378,6 +378,60 @@ function DeleteUserModal({ user, onCancel, onDeleted }: { user: AdminUser; onCan
   );
 }
 
+/**
+ * Confirms an admin-initiated 2FA reset for a locked-out user.
+ *
+ * This exists because there was previously no way back for someone who lost
+ * their authenticator AND their recovery codes — not even a platform admin
+ * could help; it took a manual database edit. It's scoped tightly: it only
+ * clears the second factor (the user re-enrols themselves afterward) and the
+ * account owner is always emailed, so a misused support channel is visible to
+ * the person it affects, not silent.
+ */
+function ResetTwoFactorModal({ user, onCancel, onReset }: {
+  user: AdminUser; onCancel: () => void; onReset: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function handleReset() {
+    setBusy(true); setErr('');
+    try {
+      await api(`/admin/users/${user.id}/reset-2fa`, { method: 'POST' });
+      onReset();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Reset failed.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 grid place-items-center px-5" onClick={onCancel}>
+      <div className="bg-[--dark-card] border border-[--dark-line] max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Reset two-factor</p>
+        <h3 className="mt-2 font-semibold text-lg break-all">{user.email}</h3>
+        <p className="mt-2 text-sm text-[--dark-muted]">
+          Turns off two-factor on this account and signs out every session. Use this only for a
+          verified support request — losing both the authenticator and the recovery codes is the
+          only case a user can't resolve themselves.
+        </p>
+        <p className="mt-2 text-sm text-[--dark-muted]">
+          The account owner is emailed immediately, whether or not this was them — that's what
+          makes this safe to have.
+        </p>
+        {err && <p className="mt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+        <div className="mt-5 flex gap-3 justify-end">
+          <button onClick={onCancel} className="font-mono2 text-xs text-[--dark-muted] hover:text-white px-3 py-2">Cancel</button>
+          <button onClick={handleReset} disabled={busy}
+            className="font-mono2 text-xs px-4 py-2 border border-[#E8B44C] text-[#E8B44C] hover:bg-[#E8B44C]/10 disabled:opacity-30 disabled:cursor-not-allowed">
+            {busy ? 'Resetting…' : 'Reset two-factor'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const inputCls = 'w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white';
 
 /** One post row with its update thread and an add-update form. */
@@ -1220,6 +1274,7 @@ export default function Admin() {
   const [detailTarget, setDetailTarget] = useState<AdminTeam | null>(null);
   const [overrideTarget, setOverrideTarget] = useState<AdminTeam | null>(null);
   const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null);
+  const [resetTwoFactorUser, setResetTwoFactorUser] = useState<AdminUser | null>(null);
   const [editHost, setEditHost] = useState<AdminHost | null>(null);
   const [detailHost, setDetailHost] = useState<AdminHost | null>(null);
 
@@ -1466,6 +1521,7 @@ export default function Admin() {
                 <tr className="border-b border-[--dark-line] font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
                   <th className="px-5 py-3 font-medium">Email</th>
                   <th className="px-5 py-3 font-medium">Verified</th>
+                  <th className="px-5 py-3 font-medium">2FA</th>
                   <th className="px-5 py-3 font-medium">Teams</th>
                   <th className="px-5 py-3 font-medium">Joined</th>
                   <th className="px-5 py-3 font-medium"></th>
@@ -1485,20 +1541,27 @@ export default function Admin() {
                         ? <span className="font-mono2 text-[10px] text-[#57C99A]">✓ yes</span>
                         : <span className="font-mono2 text-[10px] text-[#E8B44C]">pending</span>}
                     </td>
+                    <td className="px-5 py-3 font-mono2 text-[10px] text-[--dark-muted]">
+                      {u.twoFactorEnabled ? <span className="text-[#57C99A]">on</span> : 'off'}
+                    </td>
                     <td className="px-5 py-3 font-mono2 text-[11px] text-[--dark-muted]">
                       {u.teams.length === 0 ? '—' : u.teams.map((tm) => `${tm.teamName} (${tm.role})`).join(', ')}
                     </td>
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{fmtDate(u.createdAt)}</td>
-                    <td className="px-5 py-3 text-right">
+                    <td className="px-5 py-3 text-right whitespace-nowrap">
+                      {u.twoFactorEnabled && (
+                        <button onClick={() => setResetTwoFactorUser(u)}
+                          className="font-mono2 text-[10px] uppercase tracking-wider text-[#E8B44C]/80 hover:text-[#E8B44C] border border-transparent hover:border-[#E8B44C]/40 px-2 py-1">Reset 2FA</button>
+                      )}
                       {!u.isPlatformAdmin && me?.user.id !== u.id && (
                         <button onClick={() => setDeleteUser(u)}
-                          className="font-mono2 text-[10px] uppercase tracking-wider text-[--red]/80 hover:text-[--red] border border-transparent hover:border-[--red]/40 px-2 py-1">Delete</button>
+                          className="ml-1 font-mono2 text-[10px] uppercase tracking-wider text-[--red]/80 hover:text-[--red] border border-transparent hover:border-[--red]/40 px-2 py-1">Delete</button>
                       )}
                     </td>
                   </tr>
                 ))}
                 {shownUsers.length === 0 && (
-                  <tr><td colSpan={5} className="px-5 py-6 font-mono2 text-xs text-[--dark-muted]">No users match "{search}".</td></tr>
+                  <tr><td colSpan={6} className="px-5 py-6 font-mono2 text-xs text-[--dark-muted]">No users match "{search}".</td></tr>
                 )}
               </tbody>
             </table>
@@ -1555,6 +1618,17 @@ export default function Admin() {
             setUsers((prev) => prev.filter((u) => u.id !== id));
             api<{ teams: AdminTeam[] }>('/admin/subscribers').then((d) => setTeams(d.teams)).catch(() => {});
             setDeleteUser(null);
+          }}
+        />
+      )}
+
+      {resetTwoFactorUser && (
+        <ResetTwoFactorModal
+          user={resetTwoFactorUser}
+          onCancel={() => setResetTwoFactorUser(null)}
+          onReset={() => {
+            setUsers((prev) => prev.map((u) => (u.id === resetTwoFactorUser.id ? { ...u, twoFactorEnabled: false } : u)));
+            setResetTwoFactorUser(null);
           }}
         />
       )}

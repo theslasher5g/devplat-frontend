@@ -228,7 +228,7 @@ export interface AdminTeam {
 }
 
 export interface AdminUser {
-  id: string; email: string; verified: boolean; isPlatformAdmin: boolean; createdAt: string;
+  id: string; email: string; verified: boolean; isPlatformAdmin: boolean; twoFactorEnabled: boolean; createdAt: string;
   teams: { teamId: string; teamName: string; role: string }[];
 }
 
