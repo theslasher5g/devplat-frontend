@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: lint · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm, not npm — the Dockerfile builds with `pnpm install
+      # --frozen-lockfile`, so pnpm-lock.yaml is the file that actually gates a
+      # deploy. Installing a dependency with npm and leaving that lockfile
+      # stale has already broken one production build with
+      # ERR_PNPM_OUTDATED_LOCKFILE; --frozen-lockfile here turns that into a
+      # failed check instead.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # matches node:22-alpine in the Dockerfile
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run build # tsc -b && vite build — typecheck is part of it
+
+      # The tree is clean today, so anything this reports is genuinely new.
+      # Kept in the same job (not a separate advisory-only one) so a high or
+      # critical advisory blocks the merge rather than decorating it.
+      - run: pnpm audit --audit-level=high
+
+      # Guards the code splitting: the entry chunk is what a first-time visitor
+      # downloads before seeing anything, and it silently creeps back up the
+      # moment something heavy gets imported statically instead of lazily.
+      - name: entry chunk stays under budget
+        run: |
+          entry=$(ls -S dist/assets/index-*.js | head -1)
+          size=$(stat -c%s "$entry")
+          budget=$((330 * 1024))
+          echo "$entry: $((size / 1024)) KiB (budget $((budget / 1024)) KiB)"
+          if [ "$size" -gt "$budget" ]; then
+            echo "::error::entry chunk exceeded the budget — something large is being imported statically; lazy-load it or raise the budget deliberately"
+            exit 1
+          fi

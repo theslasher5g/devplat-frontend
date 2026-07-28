@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router';
 import { api, LEVEL_META, type DayStatus, type StatusComponent, type StatusLevel, type StatusPost, type StatusSummary } from '@/lib/api';
 import { Logo } from './Shared';
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   API_URL, ApiError, LEVEL_META, api,
   type ApiTokenInfo, type ContainerInfo, type CreatedToken, type EnvironmentContainers,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PASSWORD_MIN_LENGTH, passwordMeetsPolicy, passwordRules } from '@/lib/passwordPolicy';

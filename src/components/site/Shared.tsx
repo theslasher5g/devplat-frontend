@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { api, LEVEL_META, type AuditEntry, type StatusSummary } from '@/lib/api';
 import { liveLog } from '@/lib/demo';
 import { useAuth } from '@/lib/auth';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuthShell, errText } from './Auth';
