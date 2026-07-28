@@ -21,6 +21,9 @@ const SECTIONS: Section[] = [
   { id: 'connect', title: 'Connect & run tests' },
   { id: 'ci', title: 'Use it in CI' },
   { id: 'cli-reference', title: 'CLI reference' },
+  { id: 'tokens', title: 'API tokens' },
+  { id: 'account', title: 'Account security' },
+  { id: 'teams', title: 'Teams' },
   { id: 'limits', title: 'Plans & limits' },
   { id: 'troubleshooting', title: 'Troubleshooting' },
   { id: 'roadmap', title: 'Roadmap' },
@@ -251,7 +254,11 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
             <H id="cli-reference" kicker="Reference">CLI reference</H>
             <div className="mt-4 border hairline divide-y divide-[--line]">
               {[
-                ['devplat connect', 'Request a microVM, open the tunnel, set DOCKER_HOST, and drop into an interactive session. Flags: --token, --api-url.'],
+                ['devplat login', 'Sign in so later commands need no token. With no flags it opens a browser sign-in and saves the token to your user config dir; --token stores one you created in the dashboard. Flags: --token, --api-url.'],
+                ['devplat logout', 'Revoke the stored token server-side and remove it from this machine.'],
+                ['devplat connect', 'Request a microVM, open the tunnel, set DOCKER_HOST, and drop into an interactive session. With --exec "CMD" it runs headless for CI: your command inherits DOCKER_HOST, its exit code becomes devplat’s, and the environment is released afterwards. Flags: --token, --api-url, --exec.'],
+                ['devplat doctor', 'Read-only self-check: CLI version and available updates, which token is in use and where it came from, whether the control plane is reachable, and whether that token is accepted. Creates nothing — run this first when something stops working.'],
+                ['devplat upgrade', 'Update to the latest published release via the official installer (prints the command on Windows).'],
                 ['devplat version', 'Print the CLI version.'],
                 ['devplat help', 'Usage and flag summary.'],
               ].map(([cmd, desc]) => (
@@ -272,6 +279,158 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
                 <span className="text-[--ink-soft]"><span className="font-mono2 text-[12px]">--api-url</span> flag, then <span className="font-mono2 text-[12px]">DEVPLAT_API_URL</span>, else <span className="font-mono2 text-[12px]">https://api.devplat.ch</span></span>
               </div>
             </div>
+          </section>
+
+          {/* API TOKENS */}
+          <section className="space-y-3">
+            <H id="tokens" kicker="Credentials">API tokens</H>
+            <p className="text-[--ink-soft]">
+              Tokens authorize test runs — never dashboard access. Create them under{' '}
+              <button onClick={() => go('app')} className="link-underline text-[--ink] font-medium">Tokens</button>{' '}
+              in the dashboard. The plaintext is shown exactly once, on creation; we store
+              only a hash, so a lost token is replaced, not recovered.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Expiry</p>
+            <p className="text-sm text-[--ink-soft]">
+              A token can be given an expiry when you create it. After that date it stops
+              working and the CLI says so by name rather than failing as a generic auth
+              error. A CI token that outlives the person who created it is the usual way
+              credentials leak, so setting one — 90 or 180 days — is worth the calendar
+              reminder. Tokens created without an expiry keep working until revoked.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">IP allowlists</p>
+            <p className="text-sm text-[--ink-soft]">
+              A token can be restricted to one or more IP ranges, given as addresses or
+              CIDR blocks (<span className="font-mono2 text-[13px]">203.0.113.4</span>,{' '}
+              <span className="font-mono2 text-[13px]">10.0.0.0/8</span>,{' '}
+              <span className="font-mono2 text-[13px]">2001:db8::/32</span>). A bare address
+              is stored as a single host. Requests from anywhere else are rejected even
+              with the correct token, which turns a stolen CI secret into a dead one.
+            </p>
+            <p className="text-sm text-[--ink-soft]">
+              The catch worth knowing before you enable it: hosted CI runners egress from
+              large, changing ranges, so an allowlist built from your laptop's address will
+              lock the pipeline out. Use it for self-hosted runners and fixed office or VPN
+              egress; leave it empty otherwise.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Rotating without downtime</p>
+            <p className="text-sm text-[--ink-soft]">
+              Create the replacement first, update the CI secret, confirm a green run, then
+              revoke the old one. Both are valid in between — there's no limit that forces
+              you to delete before you create.
+            </p>
+          </section>
+
+          {/* ACCOUNT SECURITY */}
+          <section className="space-y-3">
+            <H id="account" kicker="Your account">Account security</H>
+            <p className="text-[--ink-soft]">
+              Everything here lives under{' '}
+              <button onClick={() => go('app')} className="link-underline text-[--ink] font-medium">Profile</button>{' '}
+              in the dashboard — the avatar in the top right.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Two-factor authentication</p>
+            <p className="text-sm text-[--ink-soft]">
+              Standard TOTP, so any authenticator works — Google Authenticator, 1Password,
+              Bitwarden, Aegis. Setup shows a QR code (and the key in text, if you'd rather
+              type it) plus ten single-use recovery codes. Save those somewhere that isn't
+              the phone running the authenticator; they're the way back in if you lose the
+              device, and we can't regenerate them for you without them.
+            </p>
+            <p className="text-sm text-[--ink-soft]">
+              Codes are accepted within 30 seconds either side of your clock, and each one
+              works once — a code someone reads over your shoulder is already spent.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Passwords</p>
+            <p className="text-sm text-[--ink-soft]">
+              At least 12 characters, with an uppercase letter, a lowercase letter, a number
+              and a special character. We also check the password against Have I Been Pwned's
+              breach corpus and refuse ones that appear in it. That check uses the
+              k-anonymity range API: only the first five characters of the password's SHA-1
+              hash are sent, so neither we nor HIBP learn the password.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Sessions and devices</p>
+            <p className="text-sm text-[--ink-soft]">
+              The profile lists every active session with its browser, IP address, when it
+              started and when it was last used. Sign out any one of them, or all of them at
+              once — useful the moment you notice one you don't recognise. Changing
+              your password or disabling 2FA signs out every other session automatically.
+              You'll also get an email the first time your account signs in from an
+              unrecognised device, and when a token is created, 2FA is turned off, or team
+              ownership moves.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Export and deletion</p>
+            <p className="text-sm text-[--ink-soft]">
+              <span className="font-medium text-[--ink]">Export</span> downloads everything
+              we hold about your account and its teams as JSON (GDPR Art. 15/20) — secrets
+              like token hashes are excluded by design.{' '}
+              <span className="font-medium text-[--ink]">Delete account</span> is permanent
+              and immediate. If you own a team that still has other members, transfer
+              ownership or delete the team first — we won't orphan other people's work. A
+              team where you're the only member is deleted along with your account.
+            </p>
+          </section>
+
+          {/* TEAMS */}
+          <section className="space-y-3">
+            <H id="teams" kicker="Working together">Teams</H>
+            <p className="text-[--ink-soft]">
+              Environments, tokens, billing and the audit trail belong to a team, not to
+              you. One account can belong to several — a client's team and your own, say —
+              and the switcher in the dashboard header decides which one your CLI runs
+              against.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Roles</p>
+            <div className="border hairline mt-3 text-sm">
+              {[
+                ['Owner', 'Everything an admin can do, plus the three things nobody else can: transfer ownership, delete the team, and set the team-wide 2FA requirement. Exactly one per team.'],
+                ['Admin', 'Invite and remove members, manage API tokens, handle billing, and read and export the audit log.'],
+                ['Developer', 'Run environments. Cannot change the team, its members, its tokens or its billing.'],
+              ].map(([r, d]) => (
+                <div key={r} className="flex gap-4 px-4 py-2 border-b hairline last:border-b-0">
+                  <span className="text-[--ink] font-medium min-w-[5.5rem]">{r}</span>
+                  <span className="text-[--ink-soft]">{d}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Seats</p>
+            <p className="text-sm text-[--ink-soft]">
+              Every plan includes a number of seats, and pending invitations count against
+              it — so a batch of invites can't quietly push the team over its plan once
+              they're all accepted. If you're at the limit, remove someone unused or upgrade.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Leaving and handing over</p>
+            <p className="text-sm text-[--ink-soft]">
+              Any member can leave a team from the dashboard. An owner has to transfer
+              ownership to another member first — a team without an owner has nobody who
+              can pay for it or delete it.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Requiring 2FA for everyone</p>
+            <p className="text-sm text-[--ink-soft]">
+              An owner can require two-factor for the whole team. Members who haven't
+              enrolled keep access to their own profile — so they can set it up — but can't
+              touch team resources until they have, and the CLI tells them exactly that.
+              Turn it on after telling people, not before.
+            </p>
+
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Audit log</p>
+            <p className="text-sm text-[--ink-soft]">
+              Admins and owners see a log of who did what: tokens created and revoked,
+              members added and removed, renames, plan changes, ownership transfers. Filter
+              by date range, action or actor, and export the filtered view as CSV for a
+              spreadsheet or JSON for tooling.
+            </p>
           </section>
 
           {/* LIMITS */}
@@ -299,6 +458,11 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
                 ['Stuck on “queued, waiting for capacity…”', 'Your team is at its parallelism limit — an existing environment must be released (or the run finished) before this one is assigned. Check the dashboard, or upgrade the plan for more concurrent environments.'],
                 ['Testcontainers can’t reach a published container port', 'The CLI mirrors every published TCP port of a running container onto the same port on 127.0.0.1 while devplat connect is active. If a connection fails: check the port isn’t already taken locally (the CLI prints a warning if so), and make sure you’re on a current CLI build — port mirroring shipped with the dynamic port tunnel and older binaries only tunnel the Docker API itself. UDP ports aren’t mirrored.'],
                 ['“environment never became ready”', 'The VM was assigned but its Docker daemon didn’t answer in time. Usually transient — retry devplat connect. If it persists, the platform status is shown per-region in the footer.'],
+                ['“your API token has expired”', 'The token was created with an expiry date and has passed it. Create a new one under Tokens, then run devplat login --token <new-token>. Nothing else about the account has changed.'],
+                ['“this API token is restricted to certain IP ranges”', 'The token has an IP allowlist and the address this request came from isn’t in it. CI runners usually egress from a different range than your machine — check the token’s allowlist in the dashboard, or use a token without one for hosted runners.'],
+                ['“your team requires two-factor authentication”', 'An owner turned on team-wide 2FA and this account hasn’t enrolled. Set it up under Profile in the dashboard; you can still reach your own profile while locked out of team resources.'],
+                ['“your team has no seats left”', 'The plan’s seat count is used up — remember pending invitations count too. Remove an unused member or a stale invite, or upgrade the plan.'],
+                ['A token that worked yesterday stopped working', 'Run devplat doctor. It reports which token is in use and where it came from, whether the control plane is reachable, and whether the token is accepted — which separates “revoked/expired” from “wrong token picked up from the environment” in one command.'],
               ].map(([q, a]) => (
                 <div key={q} className="border-l-2 border-[--ink] pl-4">
                   <p className="font-mono2 text-[13px] text-[--ink]">{q}</p>
