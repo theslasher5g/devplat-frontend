@@ -483,19 +483,28 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
   return (
     <div className="grid gap-5">
       {drawer && <EnvironmentDrawer requestId={drawer} onClose={() => setDrawer(null)} />}
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Two columns from the smallest screen up: as four stacked full-width
+          cards, these filled an entire phone viewport before anything
+          actionable appeared. The Plan card is gone — the plan is already in
+          the header chip and, during a trial, in the banner directly above;
+          stating it a third time cost a card slot and taught nothing. What
+          replaced it is the number people actually come here for. */}
+      <div className="grid gap-3 sm:gap-5 grid-cols-2 xl:grid-cols-4">
         {([
-          { k: 'Plan', text: planLabel, s: 'manage under Usage & billing' },
-          { k: 'Parallelism limit', num: limit, s: `environment${limit === 1 ? '' : 's'} at once` },
           { k: 'Active now', num: envs ? active : null, s: 'assigned microVMs' },
           { k: 'Queued', num: envs ? queued : null, s: 'waiting for a free slot' },
+          { k: 'Parallelism limit', num: limit, s: `environment${limit === 1 ? '' : 's'} at once`, sub: planLabel },
+          { k: 'Runs · 14d', num: usage ? usage.days.reduce((a, d) => a + d.starts, 0) : null, s: 'environment starts' },
         ] as const).map((c) => (
-          <Card key={c.k} className="p-5 accent-top lift">
-            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">{c.k}</p>
-            {'text' in c
-              ? <p className="font-doto text-4xl mt-2">{c.text}</p>
-              : <CountStat value={c.num ?? (err ? 0 : null)} />}
+          <Card key={c.k} className="p-4 sm:p-5 accent-top lift">
+            <p className="font-mono2 text-[10px] sm:text-[11px] uppercase tracking-widest text-[--dark-muted]">{c.k}</p>
+            <CountStat value={c.num ?? (err ? 0 : null)} />
             <p className="text-xs text-[--dark-muted] mt-1">{c.s}</p>
+            {'sub' in c && c.sub && (
+              <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1.5 pt-1.5 border-t border-[--dark-line]">
+                on {c.sub}
+              </p>
+            )}
           </Card>
         ))}
       </div>
@@ -1666,10 +1675,13 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
   };
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <button onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 font-mono2 text-xs uppercase tracking-widest text-[--dark-muted] hover:text-white transition-colors">
-        <span className="truncate max-w-[22ch]">{current}</span>
+        title={current}
+        className="flex items-center gap-2 min-w-0 font-mono2 text-xs uppercase tracking-widest text-[--dark-muted] hover:text-white transition-colors">
+        {/* Tight on a phone, generous on a desktop. Without a hard cap a long
+            team name pushed the bell and avatar off the header. */}
+        <span className="truncate max-w-[14ch] sm:max-w-[16ch] lg:max-w-[22ch]">{current}</span>
         <span className={`text-[9px] transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>▼</span>
       </button>
       {open && (
@@ -2326,6 +2338,24 @@ export default function Dashboard() {
   const [teamInfo, setTeamInfo] = useState<TeamInfo | null>(null);
   const apiOk = useApiHealth();
 
+  // Rail width is a per-machine preference — someone on a 13" laptop wants the
+  // 190px back, someone on a 27" display doesn't. Persisted so the choice
+  // survives a reload rather than being re-made every session.
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('devplat.sidebar') === 'collapsed');
+  useEffect(() => {
+    localStorage.setItem('devplat.sidebar', collapsed ? 'collapsed' : 'expanded');
+  }, [collapsed]);
+
+  // Mobile drawer. Closes on navigation and on Escape — a drawer you can only
+  // dismiss by finding the scrim is a trap on a phone.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
+
   useEffect(() => {
     api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => setTeamInfo(null));
   }, [me?.team?.id]);
@@ -2372,63 +2402,138 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[--dark] text-[--dark-text] flex">
-      {/* sidebar */}
-      <aside className="w-56 shrink-0 border-r border-[--dark-line] hidden md:flex flex-col">
-        <div className="h-16 flex items-center px-5 border-b border-[--dark-line]"><Logo dark onClick={() => navigate('/')} /></div>
+      {/* Mobile drawer scrim. The same <aside> serves as both the desktop rail
+          and the phone drawer, so the nav exists in exactly one place. */}
+      {sidebarOpen && (
+        <button
+          aria-label="Close menu"
+          onClick={() => setSidebarOpen(false)}
+          className="md:hidden fixed inset-0 z-40 bg-black/60"
+        />
+      )}
+      <aside
+        className={`shrink-0 border-r border-[--dark-line] flex flex-col bg-[--dark] transition-[width] duration-200
+          fixed md:static inset-y-0 left-0 z-50 md:z-auto
+          ${sidebarOpen ? 'flex w-64' : 'hidden md:flex'}
+          ${collapsed ? 'md:w-16' : 'md:w-56'}`}
+      >
+        {/* The collapse toggle lives up here rather than at the foot of the
+            rail: the cookie notice is a fixed bottom bar and sits directly on
+            top of anything down there, which made the toggle unclickable until
+            the notice was dismissed. */}
+        <div className={`h-16 flex items-center border-b border-[--dark-line] ${collapsed ? 'md:justify-center md:px-0 px-5' : 'px-5 justify-between'}`}>
+          {/* Collapsed to icons the wordmark doesn't fit, but the mark alone
+              still gets you home. */}
+          <span className={collapsed ? 'md:hidden' : ''}><Logo dark onClick={() => navigate('/')} /></span>
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="hidden md:grid place-items-center w-7 h-7 text-[--dark-muted] hover:text-white"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M9 4v16" />
+              <path d={collapsed ? 'M13.5 9.5 16 12l-2.5 2.5' : 'M16 9.5 13.5 12l2.5 2.5'} />
+            </svg>
+          </button>
+        </div>
         <nav className="flex-1 py-3">
           {items.map((i) => (
-            <button key={i.key} onClick={() => setView(i.key)}
-              className={`w-full flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${view === i.key ? 'text-white bg-white/[0.05] border-r-2 border-[--red]' : 'text-[--dark-muted] hover:text-white'}`}>
-              <span className="w-4 grid place-items-center"><NavIcon name={i.key} /></span>{i.label}
+            <button key={i.key} onClick={() => { setView(i.key); setSidebarOpen(false); }}
+              title={collapsed ? i.label : undefined}
+              className={`w-full flex items-center gap-3 py-2.5 text-sm transition-colors ${collapsed ? 'md:justify-center md:px-0 px-5' : 'px-5'} ${view === i.key ? 'text-white bg-white/[0.05] border-r-2 border-[--red]' : 'text-[--dark-muted] hover:text-white'}`}>
+              <span className="w-4 grid place-items-center shrink-0"><NavIcon name={i.key} /></span>
+              <span className={collapsed ? 'md:hidden' : ''}>{i.label}</span>
             </button>
           ))}
+          <button onClick={() => { setView('profile'); setSidebarOpen(false); }}
+            className="md:hidden w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[--dark-muted] hover:text-white transition-colors">
+            <span className="w-4 grid place-items-center shrink-0"><NavIcon name="profile" /></span>Profile
+          </button>
+          <button onClick={signOut}
+            className="md:hidden w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[--dark-muted] hover:text-white transition-colors">
+            <span className="w-4 grid place-items-center shrink-0" aria-hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" /><path d="M10 16l-4-4 4-4M6 12h10" />
+              </svg>
+            </span>Sign out
+          </button>
           {me?.user.isPlatformAdmin && (
-            <button onClick={() => navigate('/admin')}
-              className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-[--dark-muted] hover:text-white transition-colors">
-              <span className="w-4 grid place-items-center"><NavIcon name="admin" /></span>Admin
+            <button onClick={() => { navigate('/admin'); setSidebarOpen(false); }}
+              title={collapsed ? 'Admin' : undefined}
+              className={`w-full flex items-center gap-3 py-2.5 text-sm text-[--dark-muted] hover:text-white transition-colors ${collapsed ? 'md:justify-center md:px-0 px-5' : 'px-5'}`}>
+              <span className="w-4 grid place-items-center shrink-0"><NavIcon name="admin" /></span>
+              <span className={collapsed ? 'md:hidden' : ''}>Admin</span>
             </button>
           )}
         </nav>
-        <div className="p-5 border-t border-[--dark-line] font-mono2 text-[10px] text-[--dark-muted] space-y-1">
-          <p className="flex items-center gap-1.5">
+
+        {/* The control-plane footer is text-only, so it has nowhere to go when
+            the rail is 64px wide — the beacon alone still answers "is the API
+            up?", which is the part worth keeping. */}
+        <div className={`border-t border-[--dark-line] font-mono2 text-[10px] text-[--dark-muted] space-y-1 ${collapsed ? 'md:p-3 md:text-center p-5' : 'p-5'}`}>
+          <p className={`flex items-center gap-1.5 ${collapsed ? 'md:justify-center' : ''}`}
+            title={collapsed ? (apiOk === false ? 'API unreachable' : 'API reachable') : undefined}>
             {apiOk === true
               ? <span className="beacon inline-block w-1.5 h-1.5 rounded-full text-[#57C99A] bg-[#57C99A]" aria-hidden />
               : <span className={apiOk === false ? 'text-[--red]' : 'text-[--dark-muted]'}>●</span>}
-            {apiOk === false ? 'API unreachable' : apiOk === null ? 'Checking API…' : 'API reachable'}
+            <span className={collapsed ? 'md:hidden' : ''}>
+              {apiOk === false ? 'API unreachable' : apiOk === null ? 'Checking API…' : 'API reachable'}
+            </span>
           </p>
-          <p>Control plane · {API_URL.replace(/^https?:\/\//, '')}</p>
+          <p className={collapsed ? 'md:hidden' : ''}>Control plane · {API_URL.replace(/^https?:\/\//, '')}</p>
         </div>
       </aside>
       {/* main */}
       <div className="flex-1 min-w-0">
         <header className="h-16 border-b border-[--dark-line] flex items-center justify-between px-5 sticky top-0 bg-[--dark]/95 backdrop-blur z-30">
-          <div className="flex items-center gap-4">
-            <span className="md:hidden"><Logo dark onClick={() => navigate('/')} /></span>
-            <div className="hidden md:flex items-center gap-2">
+          {/* min-w-0 so a long team name truncates instead of shoving the
+              right-hand chips off the header. */}
+          <div className="flex items-center gap-4 min-w-0">
+            <button onClick={() => setSidebarOpen(true)} aria-label="Open menu"
+              className="md:hidden text-[--dark-muted] hover:text-white shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+            {/* The wordmark is in the drawer on a phone; repeating it here
+                only competed with the team name for the same few pixels. */}
+            <span className="hidden sm:block md:hidden"><Logo dark onClick={() => navigate('/')} /></span>
+            {/* The team switcher is shown at every width: with multi-team
+                support, "which team am I acting in" is not a desktop-only
+                question, and on a phone it was previously invisible. */}
+            <div className="flex items-center gap-2 min-w-0">
               <TeamSwitcher
                 current={teamName}
                 onSwitched={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => setTeamInfo(null)); }}
               />
-              <span className="font-mono2 text-xs uppercase tracking-widest text-[--dark-muted]">/ {titles[view]}</span>
+              <span className="hidden lg:block font-mono2 text-xs uppercase tracking-widest text-[--dark-muted] whitespace-nowrap">/ {titles[view]}</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
             {trialDaysLeft !== null && (
               <button
                 onClick={() => setView('billing')}
                 title="Free trial — parallel environments drop to 0 when it ends"
-                className={`hidden sm:block font-mono2 text-[10px] border px-2 py-1 transition-colors ${
+                // whitespace-nowrap is the actual fix: these chips used to wrap
+                // to three lines inside a fixed 64px header between 768px and
+                // ~1000px, overflowing the band. They now stay one line and
+                // simply don't appear until there's room for them.
+                className={`hidden xl:block font-mono2 text-[10px] border px-2 py-1 whitespace-nowrap transition-colors ${
                   trialDaysLeft <= 3
                     ? 'border-[--red]/50 text-[#F07A6A] hover:border-[--red]'
                     : 'border-[#E8B44C]/40 text-[#E8B44C] hover:border-[#E8B44C]'
                 }`}
               >
-                {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left` : 'Trial ended — upgrade to run'}
+                {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft}d left` : 'Trial ended'}
               </button>
             )}
-            <span className="hidden sm:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted]">Plan: {planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
+            <span className="hidden xl:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted] whitespace-nowrap">{planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
             <NotificationBell trialDaysLeft={trialDaysLeft} onTrialClick={() => setView('billing')} />
-            <button onClick={signOut} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Sign out</button>
+            {/* On a phone this lives in the drawer instead — the header has
+                room for the team you are in and the way into your profile,
+                and little else. */}
+            <button onClick={signOut} className="hidden sm:block font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Sign out</button>
             <button
               onClick={() => setView('profile')}
               title={`${me?.user.email} — your profile`}
