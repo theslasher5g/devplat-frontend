@@ -285,3 +285,29 @@ export interface AdminStatusComponent {
   id: string; key: string; name: string; source: 'api' | 'compute' | 'manual';
   manualStatus: StatusLevel | null; position: number; groupName: string | null;
 }
+
+/** Backup freshness for the admin dashboard (GET /admin/backups). */
+export interface AdminBackups {
+  /** False when BACKUP_REPORT_TOKEN isn't set — reporting is off, so "no runs"
+   *  means "not wired up", not "backups are failing". The distinction matters:
+   *  one is a to-do, the other is an incident. */
+  configured: boolean;
+  lastSuccessAt: string | null;
+  lastSuccessBytes: number | null;
+  lastVerifiedAt: string | null;
+  runs: {
+    id: string; status: 'ok' | 'failed' | 'verified'; archive: string | null;
+    bytes: number; durationSeconds: number; detail: string | null; createdAt: string;
+  }[];
+}
+
+/** Grouped application errors (GET /admin/errors). */
+export interface AdminErrors {
+  unresolved: number;
+  occurrencesLast24h: number;
+  errors: {
+    id: string; source: 'api' | 'client'; message: string; stack: string | null;
+    route: string | null; method: string | null; statusCode: number | null;
+    count: number; firstSeenAt: string; lastSeenAt: string; resolvedAt: string | null;
+  }[];
+}

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  api, type AdminActivity, type AdminHost, type AdminHostDetail, type AdminOverview, type AdminStatusComponent,
+  api, type AdminActivity, type AdminBackups, type AdminErrors, type AdminHost, type AdminHostDetail, type AdminOverview, type AdminStatusComponent,
   type AdminSystemHealth, type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
   type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
@@ -772,13 +772,15 @@ function ActivityFeed({ activity }: { activity: AdminActivity }) {
   );
 }
 
-type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'system' | 'audit' | 'status';
+type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'system' | 'errors' | 'backups' | 'audit' | 'status';
 const ADMIN_NAV: { key: AdminView; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'teams', label: 'Teams' },
   { key: 'users', label: 'Users' },
   { key: 'hosts', label: 'Hosts' },
   { key: 'system', label: 'System' },
+  { key: 'errors', label: 'Errors' },
+  { key: 'backups', label: 'Backups' },
   { key: 'audit', label: 'Audit log' },
   { key: 'status', label: 'Status page' },
 ];
@@ -930,6 +932,258 @@ function SystemPanel() {
 
 // Consistent line icons for the admin tabs — same 24-grid / 1.6-stroke set as
 // the dashboard sidebar, replacing the earlier mixed glyphs (incl. a smiley).
+/** "3 hours ago" — for freshness, the relative age is the answer, not the date. */
+function ago(iso: string | null): string {
+  if (!iso) return 'never';
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 48) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function hoursSince(iso: string | null): number {
+  return iso ? (Date.now() - new Date(iso).getTime()) / 3_600_000 : Infinity;
+}
+
+/**
+ * Backup freshness. The whole point is answering "is there a recent, restorable
+ * copy of the database?" at a glance — the failure mode this guards against is
+ * a job that quietly stopped months ago and looks exactly like a working one.
+ */
+function BackupsPanel() {
+  const [data, setData] = useState<AdminBackups | null>(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api<AdminBackups>('/admin/backups').then(setData)
+      .catch(() => setErr('Could not load backup status.'));
+  }, []);
+
+  if (err) return <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>;
+  if (!data) return <p className="font-mono2 text-xs text-[--dark-muted]">Loading …</p>;
+
+  // Thresholds mirror the server-side alert (48h) so the dashboard and the
+  // email can never disagree about what counts as stale.
+  const backupAge = hoursSince(data.lastSuccessAt);
+  const verifyAge = hoursSince(data.lastVerifiedAt);
+  const backupState = !data.configured ? 'unconfigured'
+    : backupAge <= 48 ? 'ok' : backupAge <= 96 ? 'warn' : 'bad';
+  const verifyState = verifyAge <= 24 * 14 ? 'ok' : verifyAge <= 24 * 30 ? 'warn' : 'bad';
+
+  const tone: Record<string, string> = {
+    ok: 'text-[#57C99A]', warn: 'text-[#E8B44C]', bad: 'text-[#F07A6A]', unconfigured: 'text-[--dark-muted]',
+  };
+
+  return (
+    <div className="space-y-6">
+      {!data.configured && (
+        <Card className="border-[#E8B44C]/40">
+          <div className="p-4">
+            <p className="text-sm text-[#E8B44C]">Backup reporting is not configured.</p>
+            <p className="font-mono2 text-[11px] text-[--dark-muted] mt-1.5 leading-relaxed">
+              Set BACKUP_REPORT_TOKEN in the API's .env and in /opt/devplat/backup.env, then restart the API.
+              Until then this page can't tell a working backup from one that stopped — see
+              deploy/backup/README.md.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid sm:grid-cols-3 gap-4">
+        <Card>
+          <div className="p-4">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Last backup</p>
+            <p className={`font-doto text-3xl mt-1 ${tone[backupState]}`}>{ago(data.lastSuccessAt)}</p>
+            <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">
+              {data.lastSuccessBytes ? fmtBytes(data.lastSuccessBytes) : '—'} · nightly at 02:15 UTC
+            </p>
+          </div>
+        </Card>
+        <Card>
+          <div className="p-4">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Last restore test</p>
+            <p className={`font-doto text-3xl mt-1 ${tone[verifyState]}`}>{ago(data.lastVerifiedAt)}</p>
+            <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">
+              restore.sh --verify · weekly
+            </p>
+          </div>
+        </Card>
+        <Card>
+          <div className="p-4">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Recent runs</p>
+            <p className="font-doto text-3xl mt-1">{data.runs.length}</p>
+            <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">
+              {data.runs.filter((r) => r.status === 'failed').length} failed
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      {data.lastVerifiedAt === null && data.configured && (
+        <p className="font-mono2 text-[11px] text-[#E8B44C]">
+          No restore has ever been verified. A backup that has never been restored is a belief, not a backup —
+          run <span className="text-white">restore.sh --verify</span> on the VPS.
+        </p>
+      )}
+
+      <Card>
+        <CardHead title="Run history" />
+        {data.runs.length === 0 ? (
+          <p className="p-4 font-mono2 text-xs text-[--dark-muted]">No runs reported yet.</p>
+        ) : (
+          <div className="divide-y divide-[--dark-line]">
+            {data.runs.map((r) => (
+              <div key={r.id} className="p-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className={`font-mono2 text-[11px] uppercase tracking-wider min-w-[4.5rem] ${
+                  r.status === 'failed' ? 'text-[#F07A6A]' : r.status === 'verified' ? 'text-[#57C99A]' : 'text-[--dark-muted]'
+                }`}>{r.status}</span>
+                <span className="font-mono2 text-[11px] text-[--dark-muted]">{fmtDateTime(r.createdAt)}</span>
+                <span className="font-mono2 text-[11px] text-[--dark-muted] flex-1 min-w-0 truncate">
+                  {r.archive ?? '—'}
+                </span>
+                <span className="font-mono2 text-[11px] text-[--dark-muted]">
+                  {r.bytes ? fmtBytes(r.bytes) : ''} {r.durationSeconds ? `· ${r.durationSeconds}s` : ''}
+                </span>
+                {r.detail && <p className="w-full font-mono2 text-[11px] text-[#F07A6A]">{r.detail}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * Application errors, grouped by fingerprint. A crash loop is one row with a
+ * count here, not ten thousand — which is what makes the list readable enough
+ * to actually be looked at.
+ */
+function ErrorsPanel() {
+  const [data, setData] = useState<AdminErrors | null>(null);
+  const [err, setErr] = useState('');
+  const [showResolved, setShowResolved] = useState(false);
+  const [source, setSource] = useState<'' | 'api' | 'client'>('');
+  const [open, setOpen] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    const q = new URLSearchParams();
+    if (showResolved) q.set('resolved', 'true');
+    if (source) q.set('source', source);
+    api<AdminErrors>(`/admin/errors?${q}`).then(setData)
+      .catch(() => setErr('Could not load errors.'));
+  }, [showResolved, source]);
+
+  useEffect(load, [load]);
+
+  const toggleResolved = async (id: string, resolved: boolean) => {
+    await api(`/admin/errors/${id}`, { method: 'PATCH', body: { resolved } }).catch(() => {});
+    load();
+  };
+
+  if (err) return <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>;
+  if (!data) return <p className="font-mono2 text-xs text-[--dark-muted]">Loading …</p>;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Card>
+          <div className="p-4">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Unresolved</p>
+            <p className={`font-doto text-3xl mt-1 ${data.unresolved > 0 ? 'text-[#F07A6A]' : 'text-[#57C99A]'}`}>
+              {data.unresolved}
+            </p>
+          </div>
+        </Card>
+        <Card>
+          <div className="p-4">
+            <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Occurrences · 24h</p>
+            <p className="font-doto text-3xl mt-1">{data.occurrencesLast24h}</p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {([['', 'All'], ['api', 'API'], ['client', 'Browser']] as const).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setSource(v)}
+            className={`font-mono2 text-[11px] uppercase tracking-wider px-3 py-1.5 border ${
+              source === v ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted] hover:text-white'
+            }`}
+          >{label}</button>
+        ))}
+        <button
+          onClick={() => setShowResolved((s) => !s)}
+          className={`font-mono2 text-[11px] uppercase tracking-wider px-3 py-1.5 border ml-auto ${
+            showResolved ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted] hover:text-white'
+          }`}
+        >{showResolved ? 'Hiding nothing' : 'Show resolved'}</button>
+      </div>
+
+      <Card>
+        <CardHead title="Grouped errors" />
+        {data.errors.length === 0 ? (
+          <p className="p-4 font-mono2 text-xs text-[--dark-muted]">
+            Nothing recorded. That is the correct number.
+          </p>
+        ) : (
+          <div className="divide-y divide-[--dark-line]">
+            {data.errors.map((e) => (
+              <div key={e.id} className="p-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className={`font-mono2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 border ${
+                    e.source === 'client' ? 'border-[#7AA7F0]/50 text-[#7AA7F0]' : 'border-[#F07A6A]/50 text-[#F07A6A]'
+                  }`}>{e.source}</span>
+                  {e.route && (
+                    <span className="font-mono2 text-[11px] text-[--dark-muted]">
+                      {e.method ? `${e.method} ` : ''}{e.route}
+                    </span>
+                  )}
+                  <span className="font-mono2 text-[11px] text-[--dark-muted] ml-auto">
+                    {e.count}× · last {ago(e.lastSeenAt)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setOpen(open === e.id ? null : e.id)}
+                  className={`mt-1.5 text-left text-sm w-full ${e.resolvedAt ? 'text-[--dark-muted] line-through' : 'text-white'}`}
+                >
+                  {e.message}
+                </button>
+                {open === e.id && (
+                  <div className="mt-2 space-y-2">
+                    {e.stack && (
+                      <pre className="font-mono2 text-[10px] leading-relaxed text-[--dark-muted] bg-white/[0.03] border border-[--dark-line] p-3 overflow-x-auto">
+                        {e.stack}
+                      </pre>
+                    )}
+                    <p className="font-mono2 text-[10px] text-[--dark-muted]">
+                      First seen {fmtDateTime(e.firstSeenAt)} · last {fmtDateTime(e.lastSeenAt)}
+                    </p>
+                    <button
+                      onClick={() => toggleResolved(e.id, !e.resolvedAt)}
+                      className="font-mono2 text-[11px] uppercase tracking-wider px-3 py-1.5 border border-[--dark-line] text-[--dark-muted] hover:text-white hover:border-white"
+                    >
+                      {e.resolvedAt ? 'Reopen' : 'Mark resolved'}
+                    </button>
+                    {!e.resolvedAt && (
+                      <p className="font-mono2 text-[10px] text-[--dark-muted]">
+                        Resolving doesn't delete it — if it happens again it reopens and alerts.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function AdminIcon({ name }: { name: AdminView }) {
   const p: Record<AdminView, React.ReactNode> = {
     overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
@@ -937,6 +1191,8 @@ function AdminIcon({ name }: { name: AdminView }) {
     users: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></>,
     hosts: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
     system: <><path d="M3 12h3l2-5 4 10 2-5h7" /></>,
+    errors: <><path d="M12 3.5 21 19H3z" /><path d="M12 10v4M12 16.5h.01" /></>,
+    backups: <><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" /><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>,
     audit: <><path d="M8 4h9l3 3v13H8z" /><path d="M4 8v12h12" /><path d="M11 11h6M11 15h6" /></>,
     status: <><path d="M3 12h4l2 5 4-12 2 7h6" /></>,
   };
@@ -1258,6 +1514,8 @@ export default function Admin() {
         )}
 
         {view === 'system' && <SystemPanel />}
+        {view === 'errors' && <ErrorsPanel />}
+        {view === 'backups' && <BackupsPanel />}
 
         {view === 'status' && <StatusAdmin />}
         </div>
