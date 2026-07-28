@@ -1159,6 +1159,11 @@ function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
 
 /** Filterable, exportable team audit trail. */
 function AuditLogCard() {
+  // Collapsed by default, and it fetches nothing until opened: the log is
+  // consulted occasionally and reviewed rarely, but expanded it pushed
+  // everything below it off the screen — and cost two API calls on every
+  // visit to a page nobody opened it on.
+  const [open, setOpen] = useState(false);
   const [page, setPage] = useState<AuditPage | null>(null);
   const [actions, setActions] = useState<string[]>([]);
   const [action, setAction] = useState('');
@@ -1179,15 +1184,17 @@ function AuditLogCard() {
   }, [action, actor, from, to]);
 
   const load = useCallback(() => {
+    if (!open) return;
     const p = params();
     p.set('limit', String(LIMIT));
     p.set('offset', String(offset));
     api<AuditPage>(`/teams/me/audit?${p}`).then(setPage).catch(() => setPage(null));
-  }, [params, offset]);
+  }, [params, offset, open]);
   useEffect(load, [load]);
   useEffect(() => {
+    if (!open) return;
     api<{ actions: string[] }>('/teams/me/audit/actions').then((d) => setActions(d.actions)).catch(() => {});
-  }, []);
+  }, [open]);
 
   const exportAs = async (format: 'csv' | 'json') => {
     const p = params();
@@ -1211,12 +1218,24 @@ function AuditLogCard() {
 
   return (
     <Card>
-      <CardHead title="Activity log" right={
-        <span className="flex items-center gap-2">
-          <button onClick={() => exportAs('csv')} className="font-mono2 text-[10px] border border-[--dark-line] px-2.5 py-1 hover:border-white">CSV</button>
-          <button onClick={() => exportAs('json')} className="font-mono2 text-[10px] border border-[--dark-line] px-2.5 py-1 hover:border-white">JSON</button>
-        </span>
-      } />
+      <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-[--dark-line]">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex items-center gap-2 font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted] hover:text-white transition-colors"
+        >
+          <span className={`text-[9px] transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden>▶</span>
+          Activity log
+        </button>
+        {open && (
+          <span className="flex items-center gap-2">
+            <button onClick={() => exportAs('csv')} className="font-mono2 text-[10px] border border-[--dark-line] px-2.5 py-1 hover:border-white">CSV</button>
+            <button onClick={() => exportAs('json')} className="font-mono2 text-[10px] border border-[--dark-line] px-2.5 py-1 hover:border-white">JSON</button>
+          </span>
+        )}
+      </div>
+      {!open ? null : (
+      <>
       <div className="px-5 py-3 border-b border-[--dark-line] flex flex-wrap items-end gap-2">
         <label className="grid gap-1">
           <span className="font-mono2 text-[9px] uppercase tracking-widest text-[--dark-muted]">Action</span>
@@ -1265,6 +1284,8 @@ function AuditLogCard() {
           <button onClick={() => setOffset(offset + LIMIT)} disabled={offset + LIMIT >= page.total}
             className="text-[--dark-muted] hover:text-white disabled:opacity-30">Older →</button>
         </div>
+      )}
+      </>
       )}
     </Card>
   );
@@ -1478,9 +1499,6 @@ function Team() {
             </div>
           </Card>
         )}
-        {canManage && <TeamSecurityCard isOwner={!!isOwner} />}
-        {canManage && <AuditLogCard />}
-
         {/* Leaving is self-service for everyone except the owner, who would
             orphan the team's billing — they transfer ownership or delete it. */}
         <Card className={isOwner ? '' : 'border-[#F07A6A]/40'}>
@@ -1632,6 +1650,7 @@ function DeleteTeamCard({ teamName }: { teamName: string }) {
 }
 
 function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 'owner' | 'admin' | 'developer'; onRenamed: () => void }) {
+  const canManage = myRole === 'owner' || myRole === 'admin';
   const [name, setName] = useState(teamName);
   const [msg, setMsg] = useState('');
   const rename = async () => {
@@ -1645,7 +1664,7 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
     }
   };
   return (
-    <div className="grid gap-5 max-w-2xl">
+    <div className="grid gap-5 max-w-4xl">
       <Card>
         <CardHead title="Organization" />
         <div className="p-5 grid gap-4 sm:grid-cols-[1fr_auto] items-end text-sm">
@@ -1658,6 +1677,13 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
           {msg && <p className="font-mono2 text-xs text-[--dark-muted] sm:col-span-2">{msg}</p>}
         </div>
       </Card>
+      {/* Security policy and the audit trail are team *configuration*, so they
+          belong here rather than on the Team page, which is about who is in
+          the team. The audit log is collapsed: it is consulted occasionally
+          and reviewed rarely, but expanded it pushed everything below it —
+          including leaving the team — off the screen. */}
+      {canManage && <TeamSecurityCard isOwner={myRole === 'owner'} />}
+      {canManage && <AuditLogCard />}
       {myRole === 'owner' && <DeleteTeamCard teamName={teamName} />}
     </div>
   );
@@ -2374,6 +2400,139 @@ function NavIcon({ name }: { name: View | 'admin' }) {
 }
 
 /** Landing state for an account that belongs to no team. */
+/**
+ * Enrolment screen shown when the team requires two-factor and this account
+ * doesn't have it yet.
+ *
+ * Without this, an invited colleague registered, accepted the invite, landed
+ * on the dashboard — and every panel failed with an unexplained error, because
+ * requireMember refuses each team-scoped call with two_factor_required. The
+ * server was doing the right thing; nothing was translating it into an
+ * instruction. This is the first thing a new team member sees, so it needs to
+ * read as a step in joining, not as a wall.
+ */
+function TwoFactorRequiredGate({ email, onEnrolled, onSignOut }: {
+  email: string; onEnrolled: () => void; onSignOut: () => void;
+}) {
+  const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
+  const [code, setCode] = useState('');
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Start the enrolment immediately: the person is here because they must do
+  // this, so an extra "Begin" click would only be ceremony.
+  useEffect(() => {
+    api<TwoFactorSetup>('/auth/2fa/setup', { method: 'POST' })
+      .then(setSetup)
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Could not start setup.'));
+  }, []);
+
+  const confirm = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const res = await api<{ recoveryCodes: string[] }>('/auth/2fa/enable', { body: { code } });
+      setCodes(res.recoveryCodes);
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'invalid_totp'
+        ? 'That code is not valid — check your device clock and enter the current code.'
+        : e instanceof Error ? e.message : 'Could not enable two-factor.');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-[--dark] text-[--dark-text] grid place-items-center px-5 py-12">
+      <div className="w-full max-w-lg">
+        <Logo dark />
+        {codes ? (
+          <Card className="mt-8">
+            <CardHead title="Save your recovery codes" />
+            <div className="p-5 grid gap-4">
+              <p className="text-sm text-[--dark-muted]">
+                Two-factor is on. These ten codes are the way back in if you lose your phone —
+                each works once. Store them somewhere that isn't the device running your
+                authenticator; we can't recover them for you.
+              </p>
+              <div className="grid grid-cols-2 gap-2 font-mono2 text-xs bg-white/[0.03] border border-[--dark-line] p-4">
+                {codes.map((c) => <span key={c}>{c}</span>)}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => navigator.clipboard?.writeText(codes.join('\n')).catch(() => {})}
+                  className="font-mono2 text-[10px] border border-[--dark-line] px-4 py-2.5 hover:border-white"
+                >Copy codes</button>
+                <button onClick={onEnrolled} className="font-mono2 text-[10px] border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark]">
+                  I've saved them — continue
+                </button>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card className="mt-8">
+            <CardHead title="Your team requires two-factor" />
+            <div className="p-5 grid gap-5">
+              <p className="text-sm text-[--dark-muted]">
+                Before you can use this team, {email && <span className="text-[--dark-text]">{email}</span>} needs
+                two-factor authentication. It takes a minute and only has to be done once.
+              </p>
+
+              {err && !setup && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+              {!setup && !err && <p className="font-mono2 text-xs text-[--dark-muted]">Preparing your setup key …</p>}
+
+              {setup && (
+                <>
+                  <div>
+                    <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                      1 · Scan with your authenticator
+                    </p>
+                    <p className="text-xs text-[--dark-muted] mt-1">
+                      Google Authenticator, 1Password, Bitwarden, Aegis — any TOTP app works.
+                    </p>
+                    <div className="mt-3"><OtpQr uri={setup.otpauthUri} /></div>
+                    <p className="font-mono2 text-[10px] text-[--dark-muted] mt-3">
+                      Can't scan? Enter this key by hand:
+                    </p>
+                    <code className="block mt-1 font-mono2 text-xs break-all bg-white/[0.03] border border-[--dark-line] p-2.5">
+                      {setup.secret}
+                    </code>
+                  </div>
+
+                  <div>
+                    <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                      2 · Enter the six-digit code
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      <input
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6) void confirm(); }}
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="000000"
+                        className="font-mono2 tracking-[0.3em] bg-transparent border border-[--dark-line] px-3 py-2.5 text-sm outline-none focus:border-white w-36"
+                      />
+                      <button
+                        onClick={confirm}
+                        disabled={busy || code.length !== 6}
+                        className="font-mono2 text-[10px] border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[--dark-text]"
+                      >{busy ? 'Checking …' : 'Turn on two-factor'}</button>
+                    </div>
+                    {err && <p className="font-mono2 text-xs text-[#F07A6A] mt-2">{err}</p>}
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+        )}
+        <p className="mt-6 font-mono2 text-[11px] text-[--dark-muted]">
+          Wrong account?{' '}
+          <button onClick={onSignOut} className="text-[--dark-text] hover:text-white underline underline-offset-2">Sign out</button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function NoTeam({ onCreated }: { onCreated: () => void }) {
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -2442,9 +2601,20 @@ export default function Dashboard() {
     return () => window.removeEventListener('keydown', onKey);
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => setTeamInfo(null));
-  }, [me?.team?.id]);
+  // Distinguishing "the team failed to load" from "this team requires 2FA and
+  // you haven't enrolled" matters: the second is not an error, it is an
+  // instruction, and without this the whole dashboard just silently failed to
+  // populate for a newly invited colleague.
+  const [mustEnrol, setMustEnrol] = useState(false);
+  const loadTeam = useCallback(() => {
+    api<TeamInfo>('/teams/me')
+      .then((t) => { setTeamInfo(t); setMustEnrol(false); })
+      .catch((e) => {
+        setTeamInfo(null);
+        setMustEnrol(e instanceof ApiError && e.code === 'two_factor_required');
+      });
+  }, []);
+  useEffect(loadTeam, [loadTeam, me?.team?.id]);
 
   const setView = (v: View) => navigate(v === 'overview' ? '/app' : `/app/${v}`);
   const signOut = async () => { await logout(); navigate('/'); };
@@ -2483,7 +2653,14 @@ export default function Dashboard() {
   // left (or was removed from) their last one. Both need a way forward, not
   // just an explanation — creating a team is the only escape from this state.
   if (me && !me.team) {
-    return <NoTeam onCreated={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />;
+    return <NoTeam onCreated={() => { void refresh(); loadTeam(); }} />;
+  }
+
+  // The team requires two-factor and this account hasn't enrolled. Every
+  // team-scoped endpoint is refusing, so there is no dashboard to show —
+  // showing the enrolment instead is the only useful thing here.
+  if (mustEnrol) {
+    return <TwoFactorRequiredGate email={me?.user.email ?? ''} onEnrolled={() => { void refresh(); loadTeam(); }} onSignOut={signOut} />;
   }
 
   return (
