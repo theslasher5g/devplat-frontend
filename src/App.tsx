@@ -1,24 +1,54 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import Activate from '@/components/site/Activate';
-import Admin from '@/components/site/Admin';
-import Auth, { ConfirmEmailChange, InviteAccept, ResetPassword, VerifyEmail } from '@/components/site/Auth';
-import BugBounty from '@/components/site/BugBounty';
-import Contact from '@/components/site/Contact';
 import CookieNotice from '@/components/site/CookieNotice';
-import Dashboard from '@/components/site/Dashboard';
-import Docs from '@/components/site/Docs';
-import Download from '@/components/site/Download';
-import Faq from '@/components/site/Faq';
 import Home from '@/components/site/Home';
-import { Imprint, PrivacyPolicy, Terms } from '@/components/site/Legal';
 import PromoBanner from '@/components/site/PromoBanner';
-import { Preise } from '@/components/site/PreiseCompliance';
-import Security from '@/components/site/Security';
 import { Footer, Nav, type Page, ScrollProgress } from '@/components/site/Shared';
-import Status, { StatusConfirmPage, StatusUnsubscribePage } from '@/components/site/Status';
-import Technik from '@/components/site/Technik';
 import { AuthProvider, RequireAuth } from '@/lib/auth';
+
+/*
+ * Route-based code splitting.
+ *
+ * Everything used to land in one ~535 kB bundle, so a first-time visitor
+ * reading the landing page downloaded and parsed the entire dashboard, the
+ * admin console, and the QR/chart code along with it — on a phone, before
+ * seeing a single word.
+ *
+ * Only the landing page, the shell (nav/footer/banner) and the cookie notice
+ * stay in the entry chunk, because they render on the first paint of the most
+ * common entry point. Everything else is fetched when its route is actually
+ * visited, then warmed during idle time (see usePrefetch) so navigating around
+ * the marketing site still feels instant.
+ *
+ * `lazy` needs a default export, hence the `.then` unwrapping for the modules
+ * that export several pages.
+ */
+const Technik = lazy(() => import('@/components/site/Technik'));
+const Security = lazy(() => import('@/components/site/Security'));
+const Download = lazy(() => import('@/components/site/Download'));
+const Docs = lazy(() => import('@/components/site/Docs'));
+const Faq = lazy(() => import('@/components/site/Faq'));
+const BugBounty = lazy(() => import('@/components/site/BugBounty'));
+const Contact = lazy(() => import('@/components/site/Contact'));
+const Preise = lazy(() => import('@/components/site/PreiseCompliance').then((m) => ({ default: m.Preise })));
+const Imprint = lazy(() => import('@/components/site/Legal').then((m) => ({ default: m.Imprint })));
+const Terms = lazy(() => import('@/components/site/Legal').then((m) => ({ default: m.Terms })));
+const PrivacyPolicy = lazy(() => import('@/components/site/Legal').then((m) => ({ default: m.PrivacyPolicy })));
+
+const Status = lazy(() => import('@/components/site/Status'));
+const StatusConfirmPage = lazy(() => import('@/components/site/Status').then((m) => ({ default: m.StatusConfirmPage })));
+const StatusUnsubscribePage = lazy(() => import('@/components/site/Status').then((m) => ({ default: m.StatusUnsubscribePage })));
+
+const Auth = lazy(() => import('@/components/site/Auth'));
+const VerifyEmail = lazy(() => import('@/components/site/Auth').then((m) => ({ default: m.VerifyEmail })));
+const ConfirmEmailChange = lazy(() => import('@/components/site/Auth').then((m) => ({ default: m.ConfirmEmailChange })));
+const ResetPassword = lazy(() => import('@/components/site/Auth').then((m) => ({ default: m.ResetPassword })));
+const InviteAccept = lazy(() => import('@/components/site/Auth').then((m) => ({ default: m.InviteAccept })));
+
+// The signed-in half of the product. A logged-out visitor never needs any of it.
+const Activate = lazy(() => import('@/components/site/Activate'));
+const Dashboard = lazy(() => import('@/components/site/Dashboard'));
+const Admin = lazy(() => import('@/components/site/Admin'));
 
 export const PAGE_PATHS: Record<Page, string> = {
   home: '/',
@@ -47,6 +77,52 @@ function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo({ top: 0 }); }, [pathname]);
   return null;
+}
+
+/**
+ * Placeholder while a route chunk loads. It reserves roughly a viewport of
+ * height so the footer doesn't jump up and then back down, and stays visually
+ * quiet — on a normal connection the chunk arrives before this is perceptible,
+ * and a spinner that flashes for 80ms reads as jank rather than progress.
+ */
+function PageFallback() {
+  return <main className="min-h-[70vh]" aria-busy="true" />;
+}
+
+/**
+ * Warms the route chunks during idle time after the first paint.
+ *
+ * Splitting trades one big up-front download for a small download per
+ * navigation, and on a marketing site that second cost lands exactly when a
+ * visitor is deciding whether the product feels fast. Prefetching on idle gets
+ * both: a small entry chunk, and chunks already in cache by the time anyone
+ * clicks. Ordered by how likely each page is to be the next click.
+ *
+ * The signed-in bundles are deliberately excluded — they're the largest, and a
+ * visitor who hasn't logged in will never open them.
+ */
+function usePrefetch() {
+  useEffect(() => {
+    // Never spend a metered or slow connection's budget on speculation.
+    const conn = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    if (conn?.saveData || (conn?.effectiveType && /2g/.test(conn.effectiveType))) return;
+
+    const load = () => {
+      void import('@/components/site/PreiseCompliance');
+      void import('@/components/site/Technik');
+      void import('@/components/site/Docs');
+      void import('@/components/site/Download');
+      void import('@/components/site/Auth');
+      void import('@/components/site/Security');
+    };
+    const ric = window.requestIdleCallback;
+    if (ric) {
+      const handle = ric(load, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(load, 2000);
+    return () => window.clearTimeout(timer);
+  }, []);
 }
 
 // Per-page <title> + meta description for SEO/social. This is a client-rendered
@@ -138,7 +214,9 @@ function MarketingLayout({ page, children }: { page: Page; children: React.React
       <ScrollProgress />
       <PromoBanner go={go} />
       <Nav page={page} go={go} />
-      {children}
+      {/* Suspense sits inside the shell so the nav and footer stay painted
+          while a page chunk loads — the page swaps, the frame doesn't blink. */}
+      <Suspense fallback={<PageFallback />}>{children}</Suspense>
       <Footer go={go} />
     </div>
   );
@@ -181,11 +259,14 @@ function MarketingPage({ page }: { page: Exclude<Page, 'auth' | 'app'> }) {
   return <MarketingLayout page={page}>{body}</MarketingLayout>;
 }
 
-export default function App() {
+function AppRoutes() {
+  usePrefetch();
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ScrollToTop />
+    <>
+      <ScrollToTop />
+      {/* Outer boundary for the routes that render outside MarketingLayout
+          (status, auth, and the signed-in app), which have no shell to keep. */}
+      <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={<MarketingPage page="home" />} />
           <Route path="/how-it-works" element={<MarketingPage page="technik" />} />
@@ -213,7 +294,17 @@ export default function App() {
           <Route path="/admin" element={<RequireAuth admin><Admin /></RequireAuth>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-        <CookieNotice />
+      </Suspense>
+      <CookieNotice />
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   );
