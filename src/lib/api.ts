@@ -23,9 +23,39 @@ export async function api<T = unknown>(
     headers: options.body !== undefined ? { 'content-type': 'application/json' } : undefined,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
+  const raw = await res.text().catch(() => '');
+  let data: unknown = {};
+  let parsed = raw.trim() === '';
+  if (!parsed) {
+    try {
+      data = JSON.parse(raw);
+      parsed = true;
+    } catch {
+      parsed = false;
+    }
+  }
+
   if (!res.ok) {
-    throw new ApiError(res.status, (data as { error?: string }).error ?? 'request_failed', (data as { detail?: string }).detail);
+    const body = data as { error?: string; detail?: string };
+    throw new ApiError(res.status, body.error ?? 'request_failed', body.detail);
+  }
+
+  // A 2xx whose body isn't JSON is a failure, not a success with no fields.
+  //
+  // This used to swallow the parse error and hand the caller `{}` typed as
+  // whatever T claimed. Callers then dereferenced fields that weren't there —
+  // `usage.days.reduce(...)` on the dashboard threw "can't access property
+  // reduce, days is undefined" and took the whole route down with it. The
+  // response wasn't valid; pretending otherwise moved the failure somewhere
+  // that couldn't explain itself.
+  //
+  // It happens for real: a proxy or CDN error page served with 200, an SPA
+  // fallback answering an API path with index.html, or a connection that dies
+  // mid-body. Throwing here means the caller's existing error handling runs
+  // instead of a render crash.
+  if (!parsed) {
+    throw new ApiError(res.status, 'invalid_response',
+      'The server returned a response that was not valid JSON. This usually means a proxy or error page answered instead of the API.');
   }
   return data as T;
 }

@@ -884,7 +884,10 @@ function MrrByTier({ overview }: { overview: AdminOverview }) {
 /** 14-day stacked bar chart of VM starts (green) with failed starts (red) on
  *  top, plus a signups sparkline row. Pure divs, no chart lib. */
 function ActivityChart({ series }: { series: AdminTimeseries }) {
-  const days = series.days;
+  // Same guard as the dashboard's UsageChart: a malformed payload must not take
+  // the whole admin route down over a chart.
+  const days = Array.isArray(series?.days) ? series.days : [];
+  if (days.length === 0) return null;
   const maxRun = Math.max(1, ...days.map((d) => d.starts + d.failures));
   const maxSignup = Math.max(1, ...days.map((d) => d.signups));
   const totalStarts = days.reduce((s, d) => s + d.starts, 0);

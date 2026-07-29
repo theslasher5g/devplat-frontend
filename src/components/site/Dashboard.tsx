@@ -285,7 +285,12 @@ function fmtDuration(seconds: number | null): string {
 /** This team's daily VM-start activity — starts in green, failed starts in red
  *  stacked on top. Mirrors the admin chart, scoped to one team. */
 function UsageChart({ series }: { series: UsageTimeseries }) {
-  const days = series.days;
+  // Defence in depth against a malformed payload. api() now rejects a 2xx whose
+  // body isn't valid JSON, which is what let a `{}` through here and crashed
+  // the whole dashboard on `days.reduce`. A chart is not worth taking the route
+  // down for, so it also refuses to render from a shape it doesn't recognise.
+  const days = Array.isArray(series?.days) ? series.days : [];
+  if (days.length === 0) return null;
   const max = Math.max(1, ...days.map((d) => d.starts + d.failures));
   const total = days.reduce((s, d) => s + d.starts, 0);
   const failed = days.reduce((s, d) => s + d.failures, 0);
@@ -553,7 +558,9 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
           { k: 'Active now', num: envs ? active : null, s: 'assigned microVMs' },
           { k: 'Queued', num: envs ? queued : null, s: 'waiting for a free slot' },
           { k: 'Parallelism limit', num: limit, s: `environment${limit === 1 ? '' : 's'} at once`, sub: planLabel },
-          { k: 'Runs · 14d', num: usage ? usage.days.reduce((a, d) => a + d.starts, 0) : null, s: 'environment starts' },
+          // Same guard as UsageChart: a KPI tile must not be able to blank the
+          // page it sits on.
+          { k: 'Runs · 14d', num: Array.isArray(usage?.days) ? usage.days.reduce((a, d) => a + d.starts, 0) : null, s: 'environment starts' },
         ] as const).map((c) => (
           <Card key={c.k} className="p-4 sm:p-5 accent-top lift">
             <p className="font-mono2 text-[10px] sm:text-[11px] uppercase tracking-widest text-[--dark-muted]">{c.k}</p>
