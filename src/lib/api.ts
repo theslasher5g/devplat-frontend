@@ -256,12 +256,39 @@ export interface AdminTimeseries {
   days: { date: string; starts: number; failures: number; signups: number }[];
 }
 
+/**
+ * What the hardware is actually doing, as opposed to the sum of what plans
+ * promised (`cpu.used` / `ramMb.used`, which is what the scheduler admits
+ * against). The gap between the two is the headroom an overcommit factor would
+ * spend, so the UI keeps them side by side rather than merging them into one
+ * "utilisation" number.
+ *
+ * `null` on a host means it has never reported — an older agent. `stale: true`
+ * means it reported once and has since gone quiet, which the dashboard says
+ * differently because it means something different.
+ */
+export interface AdminHostUsage {
+  ramCommittedMb: number | null;
+  ramGrantedMb: number | null;
+  ramGuestUsedMb: number | null;
+  ramHostAvailableMb: number | null;
+  /** Held back by the balloons right now — the saving, made explicit. */
+  ramReclaimedMb: number | null;
+  cpuBusyPct: number | null;
+  cpuUsedActual: number | null;
+  /** Guests that hit their cpu.max quota — builds slowed by our cap. */
+  cpuThrottledVms: number | null;
+  measuredAt: string | null;
+  stale: boolean;
+}
+
 export interface AdminHost {
   id: string; name: string; location: string; status: 'online' | 'draining' | 'offline';
   drain: boolean; vms: number;
   lastHeartbeat: string | null;
   cpu: { total: number; used: number };
   ramMb: { total: number; used: number };
+  usage: AdminHostUsage | null;
 }
 
 export interface AdminHostDetail {
@@ -271,10 +298,17 @@ export interface AdminHostDetail {
     cpu: { total: number; used: number };
     ramMb: { total: number; used: number };
     cacheHitRate: number | null;
+    usage: AdminHostUsage | null;
   };
   environments: {
     id: string; teamName: string; vmId: string | null; status: string;
     assignedAt: string | null; vcpu: number | null; ramMb: number | null;
+    // Live from the agent. Undefined — never 0 — when the guest hasn't
+    // reported: a VM still booting has no measurement, and a fabricated zero
+    // would read as "this VM needs nothing".
+    usedMb?: number; availableMb?: number; cachesMb?: number;
+    balloonMb?: number; usableMb?: number;
+    vcpuUsed?: number; throttledPct?: number;
   }[];
   recentFailures: { id: string; teamName: string; error: string | null; attempts: number; occurredAt: string }[];
 }

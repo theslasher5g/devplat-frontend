@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  api, type AdminActivity, type AdminBackups, type AdminErrors, type AdminHost, type AdminHostDetail, type AdminOverview, type AdminStatusComponent,
+  api, type AdminActivity, type AdminBackups, type AdminErrors, type AdminHost, type AdminHostDetail, type AdminHostUsage, type AdminOverview, type AdminStatusComponent,
   type AdminSystemHealth, type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
   type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
@@ -38,15 +38,129 @@ function Kpi({ label, value, sub }: { label: string; value: string; sub?: string
   );
 }
 
-function UtilBar({ used, total, unit }: { used: number; total: number; unit: string }) {
-  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
-  const color = pct >= 85 ? 'bg-[--red]' : pct >= 60 ? 'bg-[#E8B44C]' : 'bg-[#57C99A]/80';
+/**
+ * Promise against reality, in one track.
+ *
+ * The whole point of the measurement work is the gap between what plans
+ * committed and what the hardware is doing, so showing them as two separate
+ * bars — or worse, averaging them into one "utilisation" figure — would hide
+ * exactly the thing being looked for. The muted band is what was promised; the
+ * solid fill inside it is what is actually used. The distance between their
+ * right edges is the headroom an overcommit factor would spend.
+ */
+function DualUtilBar({ committed, actual, total, unit, decimals = 0 }: {
+  committed: number; actual: number | null; total: number; unit: string; decimals?: number;
+}) {
+  const pct = (v: number) => (total > 0 ? Math.min(100, (v / total) * 100) : 0);
+  const fmt = (v: number) => v.toFixed(decimals);
+  // Severity follows actual load where it's known, and falls back to committed
+  // where it isn't — an unmeasured host at 95% committed should still look hot.
+  const severityPct = pct(actual ?? committed);
+  const fill = severityPct >= 85 ? 'bg-[--red]' : severityPct >= 60 ? 'bg-[#E8B44C]' : 'bg-[#57C99A]/80';
+
   return (
     <div>
-      <div className="h-2 bg-white/[0.12] border border-[--dark-line]">
-        <div className={`h-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      <div className="relative h-2.5 bg-white/[0.08] border border-[--dark-line]">
+        <div className="absolute inset-y-0 left-0 bg-white/[0.20]" style={{ width: `${pct(committed)}%` }}
+          title={`Promised: ${fmt(committed)} ${unit}`} />
+        {actual !== null && (
+          <div className={`absolute inset-y-0 left-0 ${fill}`} style={{ width: `${pct(actual)}%` }}
+            title={`Actually used: ${fmt(actual)} ${unit}`} />
+        )}
       </div>
-      <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">{used} / {total} {unit} ({pct}%)</p>
+      <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">
+        {actual !== null
+          ? <>used <span className="text-[--dark-text]">{fmt(actual)}</span> · promised {fmt(committed)} / {fmt(total)} {unit}</>
+          : <>promised <span className="text-[--dark-text]">{fmt(committed)}</span> / {fmt(total)} {unit} · not measured</>}
+      </p>
+    </div>
+  );
+}
+
+/** One number with a label, for the capacity grid. */
+function Stat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
+  return (
+    <div className="border border-[--dark-line] p-3">
+      <p className="font-mono2 text-[9px] uppercase tracking-widest text-[--dark-muted]">{label}</p>
+      <p className={`font-mono2 text-lg mt-1 ${tone ?? ''}`}>{value}</p>
+      {hint && <p className="font-mono2 text-[10px] text-[--dark-muted] mt-0.5">{hint}</p>}
+    </div>
+  );
+}
+
+const gb = (mb: number | null | undefined) => (mb == null ? '—' : `${(mb / 1024).toFixed(1)} GB`);
+
+/**
+ * The panel the measurement week exists for.
+ *
+ * Committed, granted and used are three different things that get conflated
+ * constantly, and the ratio at the bottom is the one that becomes an overcommit
+ * factor. Host available is separated out because it is the only number here
+ * the guests cannot see — it includes host page cache, the agent and the
+ * registry mirror, all competing for the same RAM as the next VM.
+ */
+function HostCapacityPanel({ usage, ramTotalMb, cpuTotal }: {
+  usage: AdminHostUsage | null; ramTotalMb: number; cpuTotal: number;
+}) {
+  if (!usage) {
+    return (
+      <div className="border border-[--dark-line] p-4">
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Measured capacity</p>
+        <p className="text-sm text-[--dark-muted]">
+          This host has never reported measured usage — its agent predates memory/CPU telemetry.
+          Only committed figures are available for it.
+        </p>
+      </div>
+    );
+  }
+
+  const { ramCommittedMb: committed, ramGuestUsedMb: used } = usage;
+  const ratio = committed && used !== null && committed > 0 ? Math.round((used / committed) * 100) : null;
+
+  return (
+    <div className="border border-[--dark-line] p-4">
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Measured capacity</p>
+        <p className={`font-mono2 text-[10px] ${usage.stale ? 'text-[#E8B44C]' : 'text-[--dark-muted]'}`}>
+          {usage.stale ? `stale — last measured ${fmtAgo(usage.measuredAt)}` : `measured ${fmtAgo(usage.measuredAt)}`}
+        </p>
+      </div>
+
+      {usage.stale && (
+        <p className="font-mono2 text-[10px] text-[#E8B44C] mb-3 max-w-[70ch]">
+          The agent stopped reporting. These numbers describe the host as it was, not as it is —
+          fine to read, not safe to schedule against.
+        </p>
+      )}
+
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+        <Stat label="Promised" value={gb(committed)} hint="what plans entitle" />
+        <Stat label="Grantable" value={gb(usage.ramGrantedMb)} hint="guests can touch now" />
+        <Stat label="Guest used" value={gb(used)} hint="reported in use" />
+        <Stat label="Host free" value={gb(usage.ramHostAvailableMb)} hint={`of ${gb(ramTotalMb)} physical`} />
+      </div>
+
+      {ratio !== null && (
+        <p className="mt-3 text-sm">
+          Guests are using <strong className="text-white">{ratio}%</strong> of what they were promised
+          {usage.ramReclaimedMb ? <> · balloons hold back <strong className="text-white">{gb(usage.ramReclaimedMb)}</strong></> : null}
+        </p>
+      )}
+
+      <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 mt-3">
+        <Stat label="CPU busy" value={usage.cpuBusyPct == null ? '—' : `${usage.cpuBusyPct}%`} hint="host-wide, excl. iowait" />
+        <Stat label="vCPU used" value={usage.cpuUsedActual == null ? '—' : usage.cpuUsedActual.toFixed(2)}
+          hint={`of ${cpuTotal} physical`} />
+        <Stat label="Throttled VMs" value={usage.cpuThrottledVms == null ? '—' : String(usage.cpuThrottledVms)}
+          hint="hit their CPU cap"
+          tone={usage.cpuThrottledVms ? 'text-[#E8B44C]' : undefined} />
+      </div>
+      {!!usage.cpuThrottledVms && (
+        <p className="font-mono2 text-[10px] text-[#E8B44C] mt-2 max-w-[70ch]">
+          Those guests were slowed by our own cpu.max quota, not by their own code — the one signal
+          here that describes a customer's experience rather than our capacity.
+        </p>
+      )}
     </div>
   );
 }
@@ -60,6 +174,17 @@ const hostStatusStyle: Record<string, string> = {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-CH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Relative age. Measurements are only meaningful next to how old they are —
+ *  "40 GB free" and "40 GB free as of an hour ago" are different claims. */
+function fmtAgo(iso: string | null): string {
+  if (!iso) return 'never';
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  return `${Math.round(seconds / 86400)} d ago`;
 }
 
 function EditHostModal({ host, onCancel, onSaved }: { host: AdminHost; onCancel: () => void; onSaved: (h: AdminHost) => void }) {
@@ -162,11 +287,16 @@ function HostDetailModal({ host, onCancel }: { host: AdminHost; onCancel: () => 
               <div className="border border-[--dark-line] p-4 grid gap-3">
                 <div>
                   <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">CPU</p>
-                  <UtilBar used={detail.host.cpu.used} total={detail.host.cpu.total} unit="vCPU" />
+                  <DualUtilBar committed={detail.host.cpu.used}
+                    actual={detail.host.usage?.stale ? null : detail.host.usage?.cpuUsedActual ?? null}
+                    total={detail.host.cpu.total} unit="vCPU" decimals={2} />
                 </div>
                 <div>
                   <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">RAM</p>
-                  <UtilBar used={Math.round(detail.host.ramMb.used / 1024)} total={Math.round(detail.host.ramMb.total / 1024)} unit="GB" />
+                  <DualUtilBar committed={detail.host.ramMb.used / 1024}
+                    actual={detail.host.usage?.stale || detail.host.usage?.ramGuestUsedMb == null
+                      ? null : detail.host.usage.ramGuestUsedMb / 1024}
+                    total={detail.host.ramMb.total / 1024} unit="GB" decimals={1} />
                 </div>
                 <p className="font-mono2 text-[10px] text-[--dark-muted]">
                   Cache hit rate: {detail.host.cacheHitRate == null ? '—' : `${(detail.host.cacheHitRate * 100).toFixed(1)}%`}
@@ -174,19 +304,39 @@ function HostDetailModal({ host, onCancel }: { host: AdminHost; onCancel: () => 
               </div>
             </div>
 
+            <HostCapacityPanel usage={detail.host.usage} ramTotalMb={detail.host.ramMb.total} cpuTotal={detail.host.cpu.total} />
+
             {/* environments on this host */}
             <div>
               <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-2">Environments placed here ({detail.environments.length})</p>
               <div className="border border-[--dark-line] divide-y divide-[--dark-line]">
                 {detail.environments.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <span className="min-w-0">
-                      <span className="text-sm">{e.teamName}</span>
-                      <span className="ml-2 font-mono2 text-[10px] text-[--dark-muted]">{e.vmId ?? e.id.slice(0, 8)}</span>
-                    </span>
-                    <span className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">
-                      {e.vcpu ? `${e.vcpu} vCPU · ${Math.round((e.ramMb ?? 0) / 1024)} GB` : '—'}
-                    </span>
+                  <div key={e.id} className="px-4 py-2.5 grid gap-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="text-sm">{e.teamName}</span>
+                        <span className="ml-2 font-mono2 text-[10px] text-[--dark-muted]">{e.vmId ?? e.id.slice(0, 8)}</span>
+                      </span>
+                      <span className="font-mono2 text-[10px] text-[--dark-muted] shrink-0">
+                        {e.vcpu ? `${e.vcpu} vCPU · ${Math.round((e.ramMb ?? 0) / 1024)} GB promised` : '—'}
+                      </span>
+                    </div>
+                    {/* Per-VM reality. Summed host totals hide the case that
+                        decides the overcommit factor: one VM using its whole
+                        promise beside four using almost none averages out to
+                        something comfortable that would starve the first. */}
+                    {e.usedMb !== undefined ? (
+                      <p className="font-mono2 text-[10px] text-[--dark-muted]">
+                        using <span className="text-[--dark-text]">{gb(e.usedMb)}</span>
+                        {e.ramMb ? ` (${Math.round((e.usedMb / e.ramMb) * 100)}% of promise)` : ''}
+                        {e.cachesMb ? ` · ${gb(e.cachesMb)} cache` : ''}
+                        {e.balloonMb ? ` · ${gb(e.balloonMb)} held back` : ''}
+                        {e.vcpuUsed !== undefined ? ` · ${e.vcpuUsed.toFixed(2)} vCPU` : ''}
+                        {e.throttledPct ? <span className="text-[#E8B44C]"> · {e.throttledPct}% throttled</span> : null}
+                      </p>
+                    ) : (
+                      <p className="font-mono2 text-[10px] text-[--dark-muted]">no measurement yet — still booting, or the agent can't be reached</p>
+                    )}
                   </div>
                 ))}
                 {detail.environments.length === 0 && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">No environments running here.</p>}
@@ -1406,13 +1556,28 @@ export default function Admin() {
                 </div>
                 <div>
                   <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">CPU</p>
-                  <UtilBar used={h.cpu.used} total={h.cpu.total} unit="vCPU" />
+                  <DualUtilBar committed={h.cpu.used} actual={h.usage?.stale ? null : h.usage?.cpuUsedActual ?? null}
+                    total={h.cpu.total} unit="vCPU" decimals={2} />
                 </div>
                 <div>
                   <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-1">RAM</p>
-                  <UtilBar used={Math.round(h.ramMb.used / 1024)} total={Math.round(h.ramMb.total / 1024)} unit="GB" />
+                  <DualUtilBar committed={h.ramMb.used / 1024}
+                    actual={h.usage?.stale ? null : (h.usage?.ramGuestUsedMb ?? null) === null ? null : h.usage!.ramGuestUsedMb! / 1024}
+                    total={h.ramMb.total / 1024} unit="GB" decimals={1} />
                 </div>
                 <div className="flex items-center gap-2 justify-self-end">
+                  {!!h.usage?.cpuThrottledVms && !h.usage.stale && (
+                    <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5"
+                      title={`${h.usage.cpuThrottledVms} guest(s) hit their CPU cap — builds slowed by our quota, not their own code`}>
+                      {h.usage.cpuThrottledVms} throttled
+                    </span>
+                  )}
+                  {h.usage?.stale && (
+                    <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5"
+                      title={`Measurements last updated ${fmtAgo(h.usage.measuredAt)} — too old to schedule against`}>
+                      stale metrics
+                    </span>
+                  )}
                   {h.drain
                     ? <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5" title="No new VMs; existing ones run out">draining</span>
                     : <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${hostStatusStyle[h.status]}`}>
