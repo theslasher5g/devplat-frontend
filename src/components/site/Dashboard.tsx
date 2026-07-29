@@ -521,7 +521,19 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
             </div>
           ))}
           {err && <p className="px-5 py-4 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
-          {envs?.length === 0 && (
+          {/* Nothing running is the normal state for a healthy team — a run
+              lasts minutes and the day has 24 hours. So this splits: a team
+              that has never connected gets the setup ladder, and a team that
+              has gets its recent runs instead. Showing "1 · Install the CLI"
+              to people who installed it months ago made the main screen read
+              as permanently unfinished.
+
+              Held back until `runs` has loaded, so an established team never
+              flashes the setup steps on the way in. */}
+          {envs?.length === 0 && runs === null && (
+            <div className="px-5 py-8 space-y-2"><Skeleton className="h-4 w-64" /><Skeleton className="h-3 w-40" /></div>
+          )}
+          {envs?.length === 0 && runs !== null && runs.length === 0 && (
             <div className="px-5 py-8">
               <p className="text-sm text-[--dark-muted]">
                 No environments running. Your test runs will show up here from the first{' '}
@@ -536,6 +548,31 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
                 <li>2 · <span className="text-white">devplat login</span> — browser sign-in, then run your tests in the session</li>
                 <li>3 · In CI, use a <button onClick={() => goView('tokens')} className="text-white hover:text-[#8AB8F0]">token</button> and one line: <span className="text-white">devplat connect --exec "mvn verify"</span></li>
               </ol>
+            </div>
+          )}
+          {envs?.length === 0 && runs !== null && runs.length > 0 && (
+            <div className="px-5 py-6">
+              <p className="text-sm text-[--dark-muted]">
+                Nothing running right now. Last run {fmtAgo(runs[0].releasedAt ?? runs[0].requestedAt)}.
+              </p>
+              <div className="mt-4 grid gap-1.5">
+                {runs.slice(0, 3).map((r) => (
+                  <div key={r.requestId} className="flex items-center gap-3 flex-wrap font-mono2 text-[11px]">
+                    <span className={r.status === 'failed' ? 'text-[#F07A6A]' : 'text-[#57C99A]'}>
+                      {r.status === 'failed' ? '✕' : '✓'}
+                    </span>
+                    <span className="text-[--dark-text]">{r.vmId ?? r.requestId.slice(0, 8)}</span>
+                    <span className="text-[--dark-muted]">{fmtAgo(r.releasedAt ?? r.requestedAt)}</span>
+                    {r.durationSeconds !== null && <span className="text-[--dark-muted]">{fmtDuration(r.durationSeconds)}</span>}
+                    {r.status === 'failed' && r.error && (
+                      <span className="text-[#F07A6A] truncate max-w-[40ch]" title={r.error}>{r.error}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 font-mono2 text-[11px] text-[--dark-muted]">
+                Start another with <span className="text-white">devplat connect</span> — the full list is under Run history below.
+              </p>
             </div>
           )}
           {envs?.map((e, i) => (
@@ -1048,7 +1085,35 @@ function Billing() {
             <CardHead title="Invoices" />
             <div className="divide-y divide-[--dark-line]">
               {invoices === null && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
-              {invoices?.length === 0 && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">No invoices yet.</p>}
+              {/* "No invoices yet." was technically true and told nobody
+                  anything — it reads like something is missing. The three
+                  cases are genuinely different, and hasStripeCustomer
+                  distinguishes them without guessing: never subscribed, versus
+                  subscribed but not yet through a billing period. */}
+              {invoices?.length === 0 && (
+                <div className="px-5 py-4 font-mono2 text-xs text-[--dark-muted] space-y-1">
+                  {!sub.hasStripeCustomer ? (
+                    <>
+                      <p className="text-[--dark-text]">Nothing billed yet.</p>
+                      <p>
+                        {isPaid
+                          ? 'Invoices appear here once the first payment goes through.'
+                          : "You're on the free trial — no card, no charge. Invoices appear here after you choose a plan."}
+                      </p>
+                    </>
+                  ) : sub.subscription?.currentPeriodEnd ? (
+                    <>
+                      <p className="text-[--dark-text]">No invoices yet.</p>
+                      <p>The first one is issued on {fmtDate(sub.subscription.currentPeriodEnd)}, when the current billing period ends.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[--dark-text]">No invoices yet.</p>
+                      <p>They appear here at the end of each billing period, with a PDF to download.</p>
+                    </>
+                  )}
+                </div>
+              )}
               {invoices?.map((i) => (
                 <div key={i.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center px-5 py-3 font-mono2 text-xs">
                   <span>{i.number ?? i.id}</span>
