@@ -25,6 +25,7 @@ const SECTIONS: Section[] = [
   { id: 'account', title: 'Account security' },
   { id: 'teams', title: 'Teams' },
   { id: 'limits', title: 'Plans & limits' },
+  { id: 'webhooks', title: 'Webhooks' },
   { id: 'troubleshooting', title: 'Troubleshooting' },
   { id: 'roadmap', title: 'Roadmap' },
 ];
@@ -446,6 +447,62 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
               The free tier is a 14-day trial with one parallel environment; after it lapses you'll
               need a paid plan to start environments. Paid plans and their exact caps are on the{' '}
               <button onClick={() => go('preise')} className="link-underline text-[--ink] font-medium">pricing page</button>.
+            </p>
+          </section>
+
+          {/* WEBHOOKS */}
+          <section className="space-y-3">
+            <H id="webhooks" kicker="Integrations">Webhooks</H>
+            <p className="text-[--ink-soft]">
+              Push environment events to your own tooling instead of polling. Add an endpoint under{' '}
+              <span className="text-[--ink] font-medium">Settings → Webhooks</span> in the dashboard;
+              you get a signing secret once, at creation.
+            </p>
+            <div className="mt-4 space-y-3">
+              {[
+                ['environment.assigned', 'A microVM booted and its Docker endpoint is ready.'],
+                ['environment.released', 'An environment was torn down — by you, or by its lifetime expiring.'],
+                ['environment.failed', 'A run could not get an environment after every retry. This is the one worth alerting on.'],
+                ['environment.queued_at_limit', 'A run is waiting because all your parallel environments are busy. Fires once per run, not once per retry.'],
+              ].map(([ev, what]) => (
+                <div key={ev} className="border-l-2 border-[--ink] pl-4">
+                  <p className="font-mono2 text-[13px] text-[--ink]">{ev}</p>
+                  <p className="mt-1 text-sm text-[--ink-soft]">{what}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[--ink-soft] pt-2">
+              Every POST carries a <span className="font-mono2 text-[--ink]">devplat-signature</span>{' '}
+              header of the form <span className="font-mono2 text-[--ink]">t=&lt;unix&gt;,v1=&lt;hex&gt;</span>.
+              Verify it before trusting the body — the URL alone is not a secret. Sign the string{' '}
+              <span className="font-mono2 text-[--ink]">"&lt;t&gt;.&lt;raw body&gt;"</span> with HMAC-SHA256
+              and your endpoint secret, compare in constant time, and reject anything whose{' '}
+              <span className="font-mono2 text-[--ink]">t</span> is more than a few minutes old — that
+              timestamp check is what stops a captured delivery being replayed at you later.
+            </p>
+            <Code>{`import crypto from 'node:crypto';
+
+function verify(rawBody, header, secret, toleranceSec = 300) {
+  const parts = Object.fromEntries(header.split(',').map((p) => p.split('=', 2)));
+  const t = Number(parts.t);
+  if (!Number.isFinite(t)) return false;
+  if (Math.abs(Date.now() / 1000 - t) > toleranceSec) return false; // replay
+  const expected = crypto.createHmac('sha256', secret)
+    .update(\`\${t}.\${rawBody}\`).digest('hex');
+  const got = Buffer.from(parts.v1 ?? '', 'utf8');
+  const want = Buffer.from(expected, 'utf8');
+  return got.length === want.length && crypto.timingSafeEqual(got, want);
+}`}</Code>
+            <p className="text-sm text-[--ink-soft]">
+              Use the <span className="font-mono2 text-[--ink]">raw</span> request body, not a
+              re-serialised object — re-encoding JSON changes the bytes and the signature will not
+              match. Deliveries are retried six times over about nine hours with growing gaps;
+              answer <span className="font-mono2 text-[--ink]">2xx</span> to acknowledge. Redirects
+              are not followed. An endpoint that fails ten events in a row is switched off
+              automatically, and the reason is shown in the dashboard next to it. Every attempt,
+              including the response your server sent back, is in the delivery log there. Retries
+              mean an event can arrive more than once — deduplicate on the payload's{' '}
+              <span className="font-mono2 text-[--ink]">id</span>.
             </p>
           </section>
 

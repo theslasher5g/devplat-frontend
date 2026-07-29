@@ -85,6 +85,64 @@ export interface TeamInfo {
   pendingInvites: { id: string; email: string; role: string; expiresAt: string }[];
 }
 
+/** How often this team's runs waited because their own parallelism cap was
+ *  full. Distinct from the usage chart, which counts starts and can't tell a
+ *  run that began instantly from one that waited ten minutes. */
+export interface CapacityPressure {
+  windowDays: number;
+  totalRuns: number;
+  blockedRuns: number;
+  /** Waits that ended in an assignment — the only ones with a known duration. */
+  resolvedWaits: number;
+  waitSecondsTotal: number;
+  waitSecondsWorst: number;
+  /** Runs queued for a slot right now. Live, not part of the window. */
+  waitingNow: number;
+  limit: number;
+  planTier: string;
+  upgrade: { tier: string; label: string; parallelEnvs: number; chfMonthly: number } | null;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  events: string[];
+  description: string | null;
+  enabled: boolean;
+  disabledReason: string | null;
+  consecutiveFailures: number;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  createdAt: string;
+  /** Last few characters only — enough to tell endpoints apart. */
+  secretHint: string;
+}
+
+/** Creation and rotation return the signing secret exactly once. */
+export interface WebhookEndpointWithSecret extends WebhookEndpoint {
+  secret: string;
+}
+
+export interface WebhookEndpointList {
+  endpoints: WebhookEndpoint[];
+  availableEvents: string[];
+}
+
+export interface WebhookDelivery {
+  id: string;
+  endpointId: string;
+  url: string;
+  eventType: string;
+  status: 'pending' | 'delivered' | 'failed';
+  attempts: number;
+  responseStatus: number | null;
+  responseBody: string | null;
+  error: string | null;
+  createdAt: string;
+  deliveredAt: string | null;
+  nextAttemptAt: string;
+}
+
 export interface TeamSecurity {
   requireTwoFactor: boolean;
   members: { email: string; twoFactorEnabled: boolean }[];

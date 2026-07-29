@@ -7,7 +7,8 @@ import {
   type AuditPage, type SessionInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo,
   type TeamSecurity, type TeamSummary,
   type TwoFactorSetup, type TwoFactorStatus,
-  type UsageTimeseries,
+  type UsageTimeseries, type CapacityPressure,
+  type WebhookDelivery, type WebhookEndpoint, type WebhookEndpointList, type WebhookEndpointWithSecret,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { passwordMeetsPolicy, passwordRules } from '@/lib/passwordPolicy';
@@ -341,6 +342,64 @@ function UsageChart({ series }: { series: UsageTimeseries }) {
   );
 }
 
+function fmtWait(seconds: number): string {
+  if (seconds < 90) return `${Math.round(seconds)}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 90) return `${minutes} min`;
+  return `${Math.round(minutes / 6) / 10} h`;
+}
+
+/**
+ * Surfaces how often this team's runs waited for a free slot.
+ *
+ * Parallelism is what the plan sells, so "we were at the ceiling for eleven
+ * runs this fortnight" is the one usage fact worth interrupting for — and it
+ * was previously invisible: a run blocked by the plan cap and a run blocked by
+ * host capacity both just showed up as "queued". Renders nothing at all when
+ * there's no pressure, so a healthy team never sees an upsell.
+ */
+function CapacityPressureNotice({ goView }: { goView: (v: View) => void }) {
+  const [p, setP] = useState<CapacityPressure | null>(null);
+  useEffect(() => {
+    api<CapacityPressure>('/environments/pressure?days=14').then(setP).catch(() => setP(null));
+  }, []);
+  if (!p || p.blockedRuns === 0) return null;
+
+  const share = p.totalRuns > 0 ? Math.round((p.blockedRuns / p.totalRuns) * 100) : 0;
+  return (
+    <Card className="p-4 sm:p-5 border-l-2 border-l-[--red]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-[70ch]">
+          <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+            Parallelism · last {p.windowDays} days
+          </p>
+          <p className="text-sm mt-2">
+            <strong className="text-white">{p.blockedRuns} run{p.blockedRuns === 1 ? '' : 's'}</strong>{' '}
+            waited for a free environment
+            {share > 0 && <> — {share}% of everything you started</>}.
+            {p.waitingNow > 0 && (
+              <> <span className="text-[--red]">{p.waitingNow} waiting right now.</span></>
+            )}
+          </p>
+          <p className="text-xs text-[--dark-muted] mt-1.5">
+            {p.resolvedWaits > 0
+              ? <>Longest wait {fmtWait(p.waitSecondsWorst)}, {fmtWait(p.waitSecondsTotal)} in total. </>
+              : null}
+            All {p.limit} of your parallel environment{p.limit === 1 ? '' : 's'} were busy. Nothing failed —
+            queued runs start automatically as a slot frees up.
+          </p>
+        </div>
+        {p.upgrade && (
+          <button onClick={() => goView('billing')}
+            className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] whitespace-nowrap">
+            {p.upgrade.label} · {p.upgrade.parallelEnvs} parallel
+          </button>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function fmtTtl(expiresAt: string | null): string {
   if (!expiresAt) return '—';
   const mins = Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000);
@@ -508,6 +567,9 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
           </Card>
         ))}
       </div>
+      {/* Directly under the KPIs, because it explains the "Queued" number
+          above rather than introducing an unrelated topic. */}
+      <CapacityPressureNotice goView={goView} />
       <Card>
         <CardHead title="Environments" right={
           <button onClick={load} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Refresh</button>
@@ -1850,6 +1912,270 @@ function EnvironmentTtlCard() {
   );
 }
 
+const EVENT_BLURB: Record<string, string> = {
+  'environment.assigned': 'A microVM booted and is ready',
+  'environment.released': 'An environment was torn down',
+  'environment.failed': 'A run could not get an environment',
+  'environment.queued_at_limit': 'A run is waiting for a free slot',
+};
+
+function DeliveryRow({ d }: { d: WebhookDelivery }) {
+  const tone = d.status === 'delivered' ? 'text-[#57C99A]' : d.status === 'failed' ? 'text-[#F07A6A]' : 'text-[#E8B44C]';
+  return (
+    <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1.6fr_110px_90px_120px] gap-3 items-center px-5 py-3 text-sm">
+      <div className="min-w-0">
+        <p className="font-mono2 text-[11px] truncate">{d.eventType}</p>
+        {(d.error || d.responseBody) && (
+          <p className="font-mono2 text-[10px] text-[--dark-muted] truncate" title={d.error ?? d.responseBody ?? ''}>
+            {d.error ?? d.responseBody}
+          </p>
+        )}
+      </div>
+      <span className={`font-mono2 text-[10px] uppercase tracking-wider ${tone}`}>{d.status}</span>
+      <span className="font-mono2 text-[10px] text-[--dark-muted] hidden sm:block">
+        {d.responseStatus ?? '—'}{d.attempts > 1 ? ` · ${d.attempts}×` : ''}
+      </span>
+      <span className="font-mono2 text-[10px] text-[--dark-muted] hidden sm:block">{fmtAgo(d.createdAt)}</span>
+    </div>
+  );
+}
+
+/**
+ * Outgoing webhooks: endpoints plus the delivery log.
+ *
+ * The delivery log is the part that makes this trustworthy rather than
+ * mysterious — an integration that silently stops working is worse than no
+ * integration, and "we sent it, they answered 401" is the only answer that lets
+ * a customer fix their own side.
+ */
+function WebhooksCard() {
+  const [data, setData] = useState<WebhookEndpointList | null>(null);
+  const [deliveries, setDeliveries] = useState<WebhookDelivery[] | null>(null);
+  const [showLog, setShowLog] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [url, setUrl] = useState('');
+  const [description, setDescription] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const [revealed, setRevealed] = useState<{ id: string; secret: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WebhookEndpoint | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const load = useCallback(() => {
+    api<WebhookEndpointList>('/webhook-endpoints').then(setData).catch(() => setData(null));
+  }, []);
+  useEffect(load, [load]);
+
+  const loadLog = useCallback(() => {
+    api<{ deliveries: WebhookDelivery[] }>('/webhook-deliveries').then((d) => setDeliveries(d.deliveries)).catch(() => {});
+  }, []);
+  useEffect(() => { if (showLog) loadLog(); }, [showLog, loadLog]);
+
+  const create = async () => {
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      const created = await api<WebhookEndpointWithSecret>('/webhook-endpoints', {
+        method: 'POST',
+        body: { url: url.trim(), description: description.trim() || undefined, events: picked },
+      });
+      setRevealed({ id: created.id, secret: created.secret });
+      setAdding(false); setUrl(''); setDescription(''); setPicked([]);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not add this endpoint.');
+    } finally { setBusy(false); }
+  };
+
+  const rotate = async (id: string) => {
+    setErr(''); setMsg('');
+    try {
+      const rotated = await api<WebhookEndpointWithSecret>(`/webhook-endpoints/${id}/rotate-secret`, { method: 'POST' });
+      setRevealed({ id, secret: rotated.secret });
+      load();
+    } catch { setErr('Could not rotate the secret.'); }
+  };
+
+  const toggle = async (e: WebhookEndpoint) => {
+    setErr(''); setMsg('');
+    try {
+      await api(`/webhook-endpoints/${e.id}`, { method: 'PATCH', body: { enabled: !e.enabled } });
+      load();
+    } catch { setErr('Could not update this endpoint.'); }
+  };
+
+  const sendTest = async (id: string) => {
+    setErr(''); setMsg('');
+    try {
+      await api(`/webhook-endpoints/${id}/test`, { method: 'POST' });
+      setMsg('Test event queued — it lands within a few seconds. Check the delivery log below.');
+      setShowLog(true);
+      setTimeout(loadLog, 6000);
+    } catch { setErr('Could not queue a test event.'); }
+  };
+
+  const remove = async () => {
+    if (!deleteTarget) return;
+    setBusy(true);
+    try {
+      await api(`/webhook-endpoints/${deleteTarget.id}`, { method: 'DELETE' });
+      setDeleteTarget(null);
+      load();
+    } catch { setErr('Could not remove this endpoint.'); }
+    finally { setBusy(false); }
+  };
+
+  const events = data?.availableEvents ?? [];
+
+  return (
+    <Card>
+      {deleteTarget && (
+        <ConfirmDialog
+          title={deleteTarget.url}
+          body="Deliveries to this endpoint stop immediately and its history is removed. This cannot be undone."
+          confirmLabel="Remove endpoint" busy={busy}
+          onCancel={() => setDeleteTarget(null)} onConfirm={remove}
+        />
+      )}
+      <CardHead title="Webhooks" right={
+        <button onClick={() => { setAdding(!adding); setRevealed(null); setErr(''); }}
+          className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">
+          {adding ? 'Cancel' : '+ Add endpoint'}
+        </button>
+      } />
+
+      <div className="px-5 pt-4">
+        <p className="text-sm text-[--dark-muted] max-w-[70ch]">
+          Get environment events in your own tooling — a Slack relay, a deploy bot, a status board —
+          instead of polling the API. Every request carries a{' '}
+          <span className="font-mono2 text-[--dark-text]">devplat-signature</span> header your
+          receiver should verify.
+        </p>
+      </div>
+
+      {adding && (
+        <div className="px-5 py-4 grid gap-3 border-b border-[--dark-line] mt-4">
+          <label className="block">
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Endpoint URL</span>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/devplat"
+              className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm font-mono2 outline-none focus:border-white" />
+          </label>
+          <label className="block">
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Description (optional)</span>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Slack #ci-alerts"
+              className="mt-1.5 w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white" />
+          </label>
+          <div>
+            <span className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Events</span>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {events.map((ev) => (
+                <button key={ev} type="button"
+                  onClick={() => setPicked((p) => p.includes(ev) ? p.filter((x) => x !== ev) : [...p, ev])}
+                  className={`text-left px-3 py-2 border transition-colors ${
+                    picked.includes(ev) ? 'border-white' : 'border-[--dark-line] hover:border-[--dark-muted]'
+                  }`}>
+                  <span className="font-mono2 text-[11px] block">{ev}</span>
+                  <span className="text-[11px] text-[--dark-muted]">{EVENT_BLURB[ev] ?? ''}</span>
+                </button>
+              ))}
+            </div>
+            <p className="font-mono2 text-[10px] text-[--dark-muted] mt-2">
+              {picked.length === 0
+                ? 'Nothing selected — you will receive every event, including ones added later.'
+                : `${picked.length} selected.`}
+            </p>
+          </div>
+          <div>
+            <button onClick={create} disabled={busy || !url.trim()}
+              className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[--dark-text]">
+              {busy ? 'Adding…' : 'Add endpoint'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {revealed && (
+        <div className="mx-5 my-4 border border-[#57C99A]/40 bg-[#57C99A]/[0.06] p-4">
+          <p className="font-mono2 text-[10px] uppercase tracking-widest text-[#57C99A]">Signing secret</p>
+          <p className="text-sm mt-1.5 text-[--dark-muted]">
+            Shown once. Store it wherever your receiver reads its config — you can rotate it later,
+            but you cannot look it up again.
+          </p>
+          <div className="mt-2.5 flex items-center gap-2">
+            <code className="font-mono2 text-xs break-all flex-1">{revealed.secret}</code>
+            <CopyButton value={revealed.secret} />
+          </div>
+        </div>
+      )}
+
+      <div className="divide-y divide-[--dark-line] mt-4">
+        {data === null && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+        {data?.endpoints.length === 0 && !adding && (
+          <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">
+            No endpoints yet — add one to get events pushed to your own tooling.
+          </p>
+        )}
+        {data?.endpoints.map((e) => (
+          <div key={e.id} className="px-5 py-4 grid gap-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-mono2 text-[12px] break-all">{e.url}</p>
+                <p className="text-[11px] text-[--dark-muted] mt-0.5">
+                  {e.description ? `${e.description} · ` : ''}
+                  {e.events.length === 0 ? 'all events' : e.events.join(', ')}
+                  {' · '}{e.secretHint}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`font-mono2 text-[9px] uppercase tracking-wider px-2 py-0.5 border ${
+                  e.enabled ? 'border-[#57C99A]/30 text-[#57C99A]' : 'border-[#F07A6A]/40 text-[#F07A6A]'
+                }`}>{e.enabled ? 'active' : 'disabled'}</span>
+              </div>
+            </div>
+
+            {e.disabledReason && (
+              <p className="font-mono2 text-[10px] text-[#F07A6A] max-w-[70ch]">{e.disabledReason}</p>
+            )}
+            <p className="font-mono2 text-[10px] text-[--dark-muted]">
+              {e.lastSuccessAt ? `Last delivered ${fmtAgo(e.lastSuccessAt)}` : 'Never delivered'}
+              {e.consecutiveFailures > 0 && ` · ${e.consecutiveFailures} failing in a row`}
+            </p>
+
+            <div className="flex flex-wrap gap-3 pt-1">
+              <button onClick={() => sendTest(e.id)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Send test</button>
+              <button onClick={() => toggle(e)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">
+                {e.enabled ? 'Disable' : 'Enable'}
+              </button>
+              <button onClick={() => rotate(e.id)} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">Rotate secret</button>
+              <button onClick={() => setDeleteTarget(e)} className="font-mono2 text-[10px] text-[#F07A6A] hover:text-white">Remove</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {msg && <p className="px-5 pt-3 font-mono2 text-xs text-[#57C99A]">{msg}</p>}
+      {err && <p className="px-5 pt-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+
+      {data && data.endpoints.length > 0 && (
+        <div className="border-t border-[--dark-line] mt-4">
+          <button onClick={() => setShowLog(!showLog)}
+            className="w-full px-5 py-3 flex items-center justify-between font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] hover:text-white">
+            <span>Delivery log</span>
+            <span>{showLog ? '−' : '+'}</span>
+          </button>
+          {showLog && (
+            <div className="divide-y divide-[--dark-line] border-t border-[--dark-line]">
+              {deliveries === null && <p className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+              {deliveries?.length === 0 && <p className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">Nothing delivered yet.</p>}
+              {deliveries?.slice(0, 20).map((d) => <DeliveryRow key={d.id} d={d} />)}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 'owner' | 'admin' | 'developer'; onRenamed: () => void }) {
   const canManage = myRole === 'owner' || myRole === 'admin';
   const [name, setName] = useState(teamName);
@@ -1879,6 +2205,7 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
         </div>
       </Card>
       {canManage && <EnvironmentTtlCard />}
+      {canManage && <WebhooksCard />}
       {/* Security policy and the audit trail are team *configuration*, so they
           belong here rather than on the Team page, which is about who is in
           the team. The audit log is collapsed: it is consulted occasionally
