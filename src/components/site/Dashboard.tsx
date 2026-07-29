@@ -1751,6 +1751,105 @@ function DeleteTeamCard({ teamName }: { teamName: string }) {
   );
 }
 
+/**
+ * How long an environment lives before the reaper takes it.
+ *
+ * The value was a single hardcoded hour for everyone: too generous for a free
+ * trial, where an abandoned session parks a slot, and too short for a long
+ * integration suite on a paid plan — with no way to say so. Entry tiers stay
+ * fixed (default == max, which is how "not configurable" is expressed), so
+ * this card explains the ceiling rather than offering a control that would be
+ * refused.
+ */
+function EnvironmentTtlCard() {
+  const [info, setInfo] = useState<TeamInfo | null>(null);
+  const [value, setValue] = useState<number | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<TeamInfo>('/teams/me').then((t) => { setInfo(t); setValue(t.team.ttlMinutes); }).catch(() => setInfo(null));
+  }, []);
+  useEffect(load, [load]);
+
+  if (!info) return null;
+  const { ttlDefaultMinutes: def, ttlMaxMinutes: max, planLabel } = info.team;
+  const configurable = max > def;
+
+  const save = async (minutes: number | null) => {
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      await api('/teams/me', { method: 'PATCH', body: { environmentTtlMinutes: minutes } });
+      setMsg(minutes === null ? `Reset to the ${planLabel} default of ${def} minutes.` : `Saved — environments now run up to ${minutes} minutes.`);
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not save.');
+    } finally { setBusy(false); }
+  };
+
+  // Offer the plan default plus round steps up to the ceiling, so the choice
+  // is a short list of sensible values rather than a free-text minute field.
+  const options = Array.from(new Set([def, ...[30, 40, 60, 90, 120].filter((n) => n <= max && n >= 15)]))
+    .sort((a, b) => a - b);
+
+  return (
+    <Card>
+      <CardHead title="Environment lifetime" right={
+        <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[--dark-line] px-2 py-0.5 text-[--dark-muted]">
+          {info.team.ttlMinutes} min
+        </span>
+      } />
+      <div className="p-5 grid gap-4">
+        <p className="text-sm text-[--dark-muted] max-w-[70ch]">
+          How long a microVM runs before it is torn down automatically, whatever the client is
+          doing. This is a safety net against an abandoned session holding one of your{' '}
+          {info.team.parallelLimit} parallel slot{info.team.parallelLimit === 1 ? '' : 's'} —
+          a finished run releases its environment immediately either way.
+        </p>
+
+        {configurable ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {options.map((n) => (
+                <button key={n} onClick={() => setValue(n)} disabled={busy}
+                  className={`font-mono2 text-[11px] px-3 py-2 border transition-colors ${
+                    value === n ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted] hover:text-white'
+                  }`}>
+                  {n} min{n === def ? ' · default' : ''}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={() => save(value)} disabled={busy || value === info.team.ttlMinutes}
+                className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[--dark-text]">
+                {busy ? 'Saving…' : 'Save'}
+              </button>
+              {info.team.ttlMinutes !== def && (
+                <button onClick={() => save(null)} disabled={busy}
+                  className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white">
+                  Reset to plan default ({def} min)
+                </button>
+              )}
+              <span className="font-mono2 text-[10px] text-[--dark-muted]">
+                {planLabel} allows up to {max} minutes.
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="font-mono2 text-[11px] text-[--dark-muted]">
+            {planLabel} runs a fixed {def}-minute lifetime. Team can raise it to 60 minutes and
+            Scale to 120.
+          </p>
+        )}
+
+        {msg && <p className="font-mono2 text-xs text-[#57C99A]">{msg}</p>}
+        {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+      </div>
+    </Card>
+  );
+}
+
 function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 'owner' | 'admin' | 'developer'; onRenamed: () => void }) {
   const canManage = myRole === 'owner' || myRole === 'admin';
   const [name, setName] = useState(teamName);
@@ -1779,6 +1878,7 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
           {msg && <p className="font-mono2 text-xs text-[--dark-muted] sm:col-span-2">{msg}</p>}
         </div>
       </Card>
+      {canManage && <EnvironmentTtlCard />}
       {/* Security policy and the audit trail are team *configuration*, so they
           belong here rather than on the Team page, which is about who is in
           the team. The audit log is collapsed: it is consulted occasionally

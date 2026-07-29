@@ -74,6 +74,12 @@ export interface TeamInfo {
     /** Members plus outstanding invites — invites count, so a batch of them
      *  can't quietly take a team over its plan once they're all accepted. */
     seatsUsed: number;
+    /** Environment lifetime currently in force, in minutes. */
+    ttlMinutes: number;
+    /** What this plan gives by default, and how far it may be raised. Equal
+     *  values mean the tier's lifetime is fixed. */
+    ttlDefaultMinutes: number;
+    ttlMaxMinutes: number;
   };
   members: { userId: string; email: string; role: string; joinedAt: string }[];
   pendingInvites: { id: string; email: string; role: string; expiresAt: string }[];
