@@ -182,11 +182,39 @@ export function Reveal({
   );
 }
 
+/**
+ * The devplat mark: four environments, one of them live.
+ *
+ * No tile behind it, unlike the favicon. A favicon is dropped onto browser
+ * chrome we don't control and needs to carry its own contrast; here the mark
+ * sits on our own surfaces, so it takes the ink colour of whatever it's on —
+ * the same way the wordmark beside it already does.
+ *
+ * Geometry matches public/favicon.svg exactly (21px squares, 4px gutter) so the
+ * two never drift into being subtly different marks.
+ */
+export function Mark({ dark = false, size = 21 }: { dark?: boolean; size?: number }) {
+  const ink = dark ? 'var(--dark-text)' : 'var(--ink)';
+  return (
+    <svg width={size} height={size} viewBox="0 0 46 46" aria-hidden="true" focusable="false" className="shrink-0">
+      <rect x="0" y="0" width="21" height="21" rx="5" fill={ink} />
+      <rect x="25" y="0" width="21" height="21" rx="5" fill={ink} />
+      <rect x="0" y="25" width="21" height="21" rx="5" fill={ink} />
+      <rect x="25" y="25" width="21" height="21" rx="5" fill="var(--red)" />
+    </svg>
+  );
+}
+
 export function Logo({ dark = false, onClick }: { dark?: boolean; onClick?: () => void }) {
   return (
-    <button onClick={onClick} className="flex items-baseline gap-0.5 select-none" aria-label="devplat – Home">
-      <span className={`font-doto text-[22px] tracking-tight ${dark ? 'text-[--dark-text]' : 'text-[--ink]'}`}>devplat</span>
-      <span className="text-[--red] text-[22px] leading-none">●</span>
+    // items-center, not items-baseline: an SVG has no baseline to align to, so
+    // the old value would have hung the mark off the text's.
+    <button onClick={onClick} className="flex items-center gap-2 select-none" aria-label="devplat – Home">
+      <Mark dark={dark} />
+      {/* The trailing red dot is gone. It was standing in for a mark we didn't
+          have; now that the real one is here and already carries the red
+          square, keeping both said the same thing twice. */}
+      <span className={`font-doto text-[22px] tracking-tight leading-none ${dark ? 'text-[--dark-text]' : 'text-[--ink]'}`}>devplat</span>
     </button>
   );
 }

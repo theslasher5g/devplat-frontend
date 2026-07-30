@@ -1,5 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#0C0C0C"/>
-  <text x="23" y="45" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-weight="700" font-size="34" fill="#F4F4F1" text-anchor="middle">d</text>
-  <circle cx="47" cy="47" r="6.5" fill="#E63312"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="devplat">
+  <!--
+    The devplat mark: a 2x2 grid of environments, one of them live.
+
+    Two deliberate differences from the full logo artwork. The white sticker
+    outline is gone — it is a presentation device for a large render, and at the
+    16px a browser tab actually draws it collapses into a grey halo that only
+    softens the edges. And the tile is paper rather than transparent, because
+    three near-black squares on a transparent background disappear entirely
+    against dark browser chrome; the light tile is what makes the mark read in
+    both light and dark tabs.
+
+    Geometry on a 64 grid: 9px inset, 21px squares, 4px gutter (9+21+4=34),
+    which puts the right and bottom edges back on 55 for a symmetric 9px inset.
+    The previous "d" glyph mark is gone — it depended on a font that isn't
+    guaranteed wherever an SVG favicon gets rasterised.
+  -->
+  <rect width="64" height="64" rx="14" fill="#F4F4F1"/>
+  <rect x="9"  y="9"  width="21" height="21" rx="5" fill="#0C0C0C"/>
+  <rect x="34" y="9"  width="21" height="21" rx="5" fill="#0C0C0C"/>
+  <rect x="9"  y="34" width="21" height="21" rx="5" fill="#0C0C0C"/>
+  <rect x="34" y="34" width="21" height="21" rx="5" fill="#E63312"/>
 </svg>

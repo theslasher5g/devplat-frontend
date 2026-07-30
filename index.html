@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>devplat — Remote Testcontainers backend, hosted in Switzerland</title>
     <meta name="description" content="Run your integration-test containers on remote Firecracker microVMs — zero code changes, flat pricing by parallelism, hosted in Basel. No Docker Desktop, no per-minute bills." />
+    <!-- SVG first for browsers that take it (crisp at any size, ~1 KB), PNG as
+         the fallback for those that don't. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Gives the dashboard a real icon when it's pinned or installed, rather
+         than a screenshot of the page. -->
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#0C0C0C" />
     <link rel="canonical" href="https://devplat.ch/" />
     <!-- Open Graph / social preview -->
