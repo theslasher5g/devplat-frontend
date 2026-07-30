@@ -5,7 +5,7 @@ import {
   type ApiTokenInfo, type ContainerInfo, type CreatedToken, type EnvironmentContainers,
   type EnvironmentDetail, type EnvironmentInfo, type EnvironmentRun, type InvoiceInfo, type ReferralInfo,
   type AuditPage, type SessionInfo, type StatusSummary, type SubscriptionInfo, type TeamInfo,
-  type TeamSecurity, type TeamSummary,
+  type TeamSecurity, type TeamSummary, type TeamList,
   type TwoFactorSetup, type TwoFactorStatus,
   type UsageTimeseries, type CapacityPressure,
   type WebhookDelivery, type WebhookEndpoint, type WebhookEndpointList, type WebhookEndpointWithSecret,
@@ -2296,8 +2296,15 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  const [meta, setMeta] = useState<{ trialAvailable: boolean; ownedTeams: number; maxOwnedTeams: number } | null>(null);
+
   const load = useCallback(() => {
-    api<{ teams: TeamSummary[] }>('/teams').then((d) => setTeams(d.teams)).catch(() => setTeams([]));
+    api<TeamList>('/teams')
+      .then((d) => {
+        setTeams(d.teams);
+        setMeta({ trialAvailable: d.trialAvailable, ownedTeams: d.ownedTeams, maxOwnedTeams: d.maxOwnedTeams });
+      })
+      .catch(() => setTeams([]));
   }, []);
   useEffect(() => { if (open && teams === null) load(); }, [open, teams, load]);
 
@@ -2358,6 +2365,15 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
                   <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="New team name"
                     onKeyDown={(e) => { if (e.key === 'Enter') void create(); }}
                     className="w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white" />
+                  {/* Said before the team exists, not discovered after. The
+                      trial is once per person, so a second team starts on no
+                      plan and can't run anything until one is chosen. */}
+                  {meta && !meta.trialAvailable && (
+                    <p className="font-mono2 text-[10px] text-[#E8B44C] leading-relaxed">
+                      Your free trial has already been used, so this team starts without one —
+                      it needs a plan before it can run environments.
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <button onClick={create} disabled={busy || !name.trim()}
                       className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-3 py-2 hover:bg-white hover:text-[--dark] disabled:opacity-30">
@@ -2366,6 +2382,10 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
                     <button onClick={() => { setCreating(false); setErr(''); }} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-2">Cancel</button>
                   </div>
                 </div>
+              ) : meta && meta.ownedTeams >= meta.maxOwnedTeams ? (
+                <p className="font-mono2 text-[10px] text-[--dark-muted] leading-relaxed">
+                  You own {meta.ownedTeams} of {meta.maxOwnedTeams} teams. Leave or delete one to create another.
+                </p>
               ) : (
                 <button onClick={() => setCreating(true)}
                   className="w-full text-left font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] hover:text-white">
@@ -3118,6 +3138,13 @@ function NoTeam({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // Same honesty as the team switcher: someone who has already used their trial
+  // (they left or deleted every team they had) should know before creating one
+  // that it won't be able to start anything yet.
+  const [trialAvailable, setTrialAvailable] = useState<boolean | null>(null);
+  useEffect(() => {
+    api<TeamList>('/teams').then((d) => setTrialAvailable(d.trialAvailable)).catch(() => setTrialAvailable(null));
+  }, []);
 
   const create = async () => {
     if (!name.trim()) return;
@@ -3144,6 +3171,12 @@ function NoTeam({ onCreated }: { onCreated: () => void }) {
           <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="Team name"
             onKeyDown={(e) => { if (e.key === 'Enter') void create(); }}
             className="w-full bg-transparent border border-[--dark-line] px-3 py-2.5 text-sm outline-none focus:border-white" />
+          {trialAvailable === false && (
+            <p className="font-mono2 text-xs text-[#E8B44C] leading-relaxed">
+              Your free trial has already been used, so this team starts without one — you'll need to
+              pick a plan before it can run environments.
+            </p>
+          )}
           {err && <p className="font-mono2 text-xs text-[#F07A6A]">{err}</p>}
           <button onClick={create} disabled={busy || !name.trim()}
             className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] disabled:opacity-30 justify-self-start">

@@ -72,6 +72,16 @@ export interface TeamSummary {
   members: number; joinedAt: string; active: boolean;
 }
 
+export interface TeamList {
+  teams: TeamSummary[];
+  /** The free trial is once per person, not per team. False means any team this
+   *  user creates from now on starts without one and needs a plan before it can
+   *  run an environment — worth saying before they create it, not after. */
+  trialAvailable: boolean;
+  ownedTeams: number;
+  maxOwnedTeams: number;
+}
+
 export interface AdminSystemHealth {
   host: {
     cpuPercent: number; cpuCores: number;
