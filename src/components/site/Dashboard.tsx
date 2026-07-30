@@ -2303,7 +2303,20 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
       .then((d) => { setTeams(d.teams); setMeta(d); })
       .catch(() => setTeams([]));
   }, []);
-  useEffect(() => { if (open && teams === null) load(); }, [open, teams, load]);
+  // Refetched every time the dropdown opens, not once and then cached.
+  //
+  // The cached version had a trap: switching teams never invalidated the list,
+  // so the entry marked "current" stayed whichever team was current when the
+  // list was first fetched. After one switch that badge pointed at the team you
+  // had just left — and since that entry is the one rendered as non-actionable,
+  // there was no way to switch back to it. The header said one team, the
+  // dropdown said another, and the obvious click did nothing.
+  //
+  // The list is small and the dropdown opens rarely, so refetching is cheap. It
+  // also picks up teams you were invited to since the page loaded, plan changes,
+  // and whether creating is still allowed. Existing rows stay on screen while
+  // the request is in flight, so there's no loading flicker.
+  useEffect(() => { if (open) load(); }, [open, load]);
 
   const switchTo = async (id: string) => {
     setBusy(true);
@@ -2319,7 +2332,9 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
     setBusy(true); setErr('');
     try {
       await api('/teams', { body: { name: name.trim() } });
-      setName(''); setCreating(false); setOpen(false); setTeams(null);
+      // No setTeams(null) any more: reopening refetches, and nulling here would
+      // show a "Loading …" flash instead of the previous rows.
+      setName(''); setCreating(false); setOpen(false);
       onSwitched();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not create the team.');
@@ -2343,8 +2358,14 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
             <p className="px-4 py-2 font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] border-b border-[--dark-line]">Your teams</p>
             <div className="max-h-64 overflow-y-auto divide-y divide-[--dark-line]">
               {teams === null && <p className="px-4 py-3 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+              {/* Every row stays clickable, including the current one.
+                  Disabling the current row is what turned a stale flag into a
+                  lockout: if the badge is ever on the wrong team, that team
+                  becomes the one you can't reach. Switching to the team you are
+                  already in is a harmless no-op that also re-syncs, so there is
+                  nothing to protect against and a real failure mode to remove. */}
               {teams?.map((t) => (
-                <button key={t.id} onClick={() => !t.active && switchTo(t.id)} disabled={busy}
+                <button key={t.id} onClick={() => switchTo(t.id)} disabled={busy}
                   className={`w-full text-left px-4 py-2.5 hover:bg-white/[0.03] transition-colors ${t.active ? 'bg-white/[0.04]' : ''}`}>
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-sm truncate">{t.name}</span>
