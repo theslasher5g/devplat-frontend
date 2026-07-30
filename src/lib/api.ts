@@ -216,6 +216,12 @@ export interface ApiTokenInfo {
   lastCliVersion?: string | null;
   // 14 daily run counts (oldest→newest) for the usage sparkline, and their sum.
   usage?: number[]; runsTotal?: number;
+  /** Email of whoever minted it; null for tokens predating creator tracking. */
+  createdBy?: string | null;
+  createdByMe?: boolean;
+  /** Decided by the backend, so the button and the endpoint agree. Absent
+   *  (older backend) is treated as allowed, which is the previous behaviour. */
+  canRevoke?: boolean;
 }
 
 export interface CreatedToken extends ApiTokenInfo { token: string }

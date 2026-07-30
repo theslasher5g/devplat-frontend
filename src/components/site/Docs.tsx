@@ -292,6 +292,15 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
               only a hash, so a lost token is replaced, not recovered.
             </p>
 
+            <p className="text-sm text-[--ink-soft] font-medium mt-6">Who can revoke</p>
+            <p className="text-sm text-[--ink-soft]">
+              Every member sees the team's tokens and who created each one. Revoking is
+              narrower: a developer can revoke the tokens they created themselves, and
+              owners and admins can revoke any of the team's. Revoking cannot be undone —
+              the plaintext was never stored — so the pipeline running on a shared CI token
+              is not one stray click away from stopping.
+            </p>
+
             <p className="text-sm text-[--ink-soft] font-medium mt-6">Expiry</p>
             <p className="text-sm text-[--ink-soft]">
               A token can be given an expiry when you create it. After that date it stops

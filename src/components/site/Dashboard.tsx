@@ -37,7 +37,13 @@ function Sparkline({ data }: { data: number[] }) {
 
 /** Prominent free-trial banner with a progress bar toward the trial's end.
  *  Escalates from neutral → amber → red as the days run out. */
-function TrialBanner({ daysLeft, onUpgrade }: { daysLeft: number; onUpgrade: () => void }) {
+function TrialBanner({ daysLeft, onUpgrade }: {
+  daysLeft: number;
+  /** null for developers. The countdown still matters to them — their runs stop
+   *  too — but "Upgrade now" would send them to a page they can't open, so the
+   *  banner tells them who can instead. */
+  onUpgrade: (() => void) | null;
+}) {
   const TRIAL_DAYS = 14;
   const ended = daysLeft <= 0;
   const used = Math.min(1, Math.max(0, (TRIAL_DAYS - daysLeft) / TRIAL_DAYS));
@@ -50,13 +56,17 @@ function TrialBanner({ daysLeft, onUpgrade }: { daysLeft: number; onUpgrade: () 
             {ended ? 'Your free trial has ended' : `Free trial — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
           </p>
           <p className="text-xs text-[--dark-muted] mt-0.5">
-            {ended ? 'Upgrade to run environments again — your data and settings are kept.' : 'Upgrade any time to keep running environments after the trial.'}
+            {onUpgrade
+              ? (ended ? 'Upgrade to run environments again — your data and settings are kept.' : 'Upgrade any time to keep running environments after the trial.')
+              : 'Ask a team owner or admin to pick a plan — nothing is lost either way, environments just stop starting.'}
           </p>
         </div>
-        <button onClick={onUpgrade} className="font-mono2 text-[11px] uppercase tracking-widest border px-4 py-2 shrink-0"
-          style={{ borderColor: color, color }}>
-          {ended ? 'Upgrade now' : 'See plans'}
-        </button>
+        {onUpgrade && (
+          <button onClick={onUpgrade} className="font-mono2 text-[11px] uppercase tracking-widest border px-4 py-2 shrink-0"
+            style={{ borderColor: color, color }}>
+            {ended ? 'Upgrade now' : 'See plans'}
+          </button>
+        )}
       </div>
       <div className="mt-3 h-1.5 bg-white/[0.08]">
         <div className="h-full" style={{ width: `${used * 100}%`, background: color }} />
@@ -111,7 +121,12 @@ interface Notification { id: string; kind: 'incident' | 'maintenance' | 'trial';
  *  about to lapse. Derived client-side from the same /status feed + the team's
  *  trial clock — no new endpoint. Dismissed ids persist in localStorage so a
  *  seen item doesn't keep re-badging. */
-function NotificationBell({ trialDaysLeft, onTrialClick }: { trialDaysLeft: number | null; onTrialClick: () => void }) {
+function NotificationBell({ trialDaysLeft, onTrialClick }: {
+  trialDaysLeft: number | null;
+  /** null for developers: they still need to know the trial is ending, they
+   *  just have nowhere to act on it. */
+  onTrialClick: (() => void) | null;
+}) {
   const [status, setStatus] = useState<StatusSummary | null>(null);
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
@@ -140,7 +155,9 @@ function NotificationBell({ trialDaysLeft, onTrialClick }: { trialDaysLeft: numb
     notifications.push({
       id: `trial:${trialDaysLeft > 0 ? trialDaysLeft : 'ended'}`, kind: 'trial',
       title: trialDaysLeft > 0 ? `Trial ends in ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'}` : 'Your trial has ended',
-      body: trialDaysLeft > 0 ? 'Upgrade before it lapses to keep running environments.' : 'Upgrade to run environments again.',
+      body: onTrialClick
+        ? (trialDaysLeft > 0 ? 'Upgrade before it lapses to keep running environments.' : 'Upgrade to run environments again.')
+        : 'A team owner or admin needs to pick a plan to keep environments running.',
       color: trialDaysLeft <= 3 ? LEVEL_META.major_outage.color : LEVEL_META.maintenance.color,
     });
   }
@@ -183,6 +200,7 @@ function NotificationBell({ trialDaysLeft, onTrialClick }: { trialDaysLeft: numb
                     </div>
                   );
                   if (n.kind === 'trial') {
+                    if (!onTrialClick) return <div key={n.id}>{inner}</div>;
                     return <button key={n.id} onClick={() => { setOpen(false); onTrialClick(); }} className="block w-full text-left hover:bg-white/[0.03]">{inner}</button>;
                   }
                   return <a key={n.id} href={n.href} className="block hover:bg-white/[0.03]">{inner}</a>;
@@ -363,7 +381,7 @@ function fmtWait(seconds: number): string {
  * host capacity both just showed up as "queued". Renders nothing at all when
  * there's no pressure, so a healthy team never sees an upsell.
  */
-function CapacityPressureNotice({ goView }: { goView: (v: View) => void }) {
+function CapacityPressureNotice({ goView, canUpgrade }: { goView: (v: View) => void; canUpgrade: boolean }) {
   const [p, setP] = useState<CapacityPressure | null>(null);
   useEffect(() => {
     api<CapacityPressure>('/environments/pressure?days=14').then(setP).catch(() => setP(null));
@@ -394,12 +412,21 @@ function CapacityPressureNotice({ goView }: { goView: (v: View) => void }) {
             queued runs start automatically as a slot frees up.
           </p>
         </div>
-        {p.upgrade && (
-          <button onClick={() => goView('billing')}
-            className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] whitespace-nowrap">
-            {p.upgrade.label} · {p.upgrade.parallelEnvs} parallel
-          </button>
-        )}
+        {/* The measurement is worth showing to everyone — a developer feeling the
+            queue should be able to see it is real. Only the button changing the
+            bill is restricted. */}
+        {p.upgrade && (canUpgrade
+          ? (
+            <button onClick={() => goView('billing')}
+              className="font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark] whitespace-nowrap">
+              {p.upgrade.label} · {p.upgrade.parallelEnvs} parallel
+            </button>
+          )
+          : (
+            <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] border border-[--dark-line] px-4 py-2.5 whitespace-nowrap">
+              {p.upgrade.label} · {p.upgrade.parallelEnvs} parallel — ask an admin
+            </p>
+          ))}
       </div>
     </Card>
   );
@@ -513,7 +540,9 @@ function EnvironmentDrawer({ requestId, onClose }: { requestId: string; onClose:
 
 /* ---------- Overview: real environments from the scheduler ---------- */
 
-function Overview({ limit, planLabel, goView }: { limit: number; planLabel: string; goView: (v: View) => void }) {
+function Overview({ limit, planLabel, goView, canUpgrade }: {
+  limit: number; planLabel: string; goView: (v: View) => void; canUpgrade: boolean;
+}) {
   const [envs, setEnvs] = useState<EnvironmentInfo[] | null>(null);
   const [runs, setRuns] = useState<EnvironmentRun[] | null>(null);
   const [usage, setUsage] = useState<UsageTimeseries | null>(null);
@@ -576,7 +605,7 @@ function Overview({ limit, planLabel, goView }: { limit: number; planLabel: stri
       </div>
       {/* Directly under the KPIs, because it explains the "Queued" number
           above rather than introducing an unrelated topic. */}
-      <CapacityPressureNotice goView={goView} />
+      <CapacityPressureNotice goView={goView} canUpgrade={canUpgrade} />
       <Card>
         <CardHead title="Environments" right={
           <button onClick={load} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Refresh</button>
@@ -888,8 +917,11 @@ function Tokens() {
       if (created?.id === id) setCreated(null);
       setRevokeTarget(null);
       load();
-    } catch {
-      setErr('Could not revoke this token — please try again.');
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'token_not_yours'
+        ? e.message
+        : 'Could not revoke this token — please try again.');
+      setRevokeTarget(null);
     } finally {
       setRevoking(false);
     }
@@ -929,6 +961,9 @@ function Tokens() {
                       · IP-restricted ({t.ipAllowlist.length})
                     </span>
                   )}
+                  {/* Who minted it. A shared team credential with no name against
+                      it is how a token nobody dares touch comes about. */}
+                  {t.createdBy && <span className="ml-2">· {t.createdByMe ? 'you' : t.createdBy}</span>}
                 </p>
               </div>
               <span className="font-mono2 text-[11px] text-[--dark-muted] hidden sm:block">Scope: {t.scope}</span>
@@ -947,7 +982,15 @@ function Tokens() {
                   return <span className={days <= 14 ? 'text-[#E8B44C]' : undefined}>expires in {days}d</span>;
                 })()}
               </span>
-              <button onClick={() => setRevokeTarget(t)} className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10">Revoke</button>
+              {/* canRevoke comes from the backend, which owns the rule. Absent
+                  means an older backend that let anyone revoke — keep that
+                  rather than disabling every button against an old API. */}
+              {t.canRevoke === false ? (
+                <span className="font-mono2 text-[10px] border border-[--dark-line] text-[--dark-muted] px-3 py-1.5 cursor-default"
+                  title={`Only ${t.createdBy ?? 'the creator'} or a team admin can revoke this token.`}>Revoke</span>
+              ) : (
+                <button onClick={() => setRevokeTarget(t)} className="font-mono2 text-[10px] border border-[#F07A6A]/40 text-[#F07A6A] px-3 py-1.5 hover:bg-[#F07A6A]/10">Revoke</button>
+              )}
             </div>
           ))}
         </div>
@@ -2269,7 +2312,8 @@ function Settings({ teamName, myRole, auditLog, onRenamed }: {
  */
 function AccountMenu({ email, initials, active, onProfile, onBilling, onSignOut }: {
   email: string; initials: string; active: boolean;
-  onProfile: () => void; onBilling: () => void; onSignOut: () => void;
+  /** null for developers, who have no billing page to go to. */
+  onProfile: () => void; onBilling: (() => void) | null; onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -2302,7 +2346,7 @@ function AccountMenu({ email, initials, active, onProfile, onBilling, onSignOut 
               {email}
             </p>
             <button className={item} onClick={() => { onProfile(); setOpen(false); }}>Profile &amp; security</button>
-            <button className={item} onClick={() => { onBilling(); setOpen(false); }}>Usage &amp; billing</button>
+            {onBilling && <button className={item} onClick={() => { onBilling(); setOpen(false); }}>Usage &amp; billing</button>}
             {/* Separated by a rule: signing out is not in the same class of
                 action as navigating somewhere. */}
             <button
@@ -3244,6 +3288,35 @@ function NoTeam({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+/**
+ * Shown when a developer lands on an owner/admin-only view by typing the URL or
+ * following an old bookmark.
+ *
+ * Deliberately an explanation rather than a redirect: bouncing someone silently
+ * back to the overview reads as a broken link, and they never learn that the
+ * page exists but isn't theirs. The API already refuses these — this is the
+ * front door saying the same thing in words.
+ */
+function RestrictedView({ view, teamName, onBack }: { view: View; teamName: string; onBack: () => void }) {
+  const what = view === 'billing'
+    ? { title: 'Usage & billing is admin-only', body: `Plans, invoices and payment details for ${teamName} are visible to the team's owner and admins.` }
+    : { title: 'Team settings are admin-only', body: `The team name, environment lifetimes, security policy and webhooks for ${teamName} are managed by the team's owner and admins.` };
+  return (
+    <Card className="p-8 max-w-[60ch]">
+      <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Not available for your role</p>
+      <h2 className="text-lg mt-2">{what.title}</h2>
+      <p className="text-sm text-[--dark-muted] mt-2 leading-relaxed">{what.body}</p>
+      <p className="text-sm text-[--dark-muted] mt-2 leading-relaxed">
+        You're a developer on this team — you can start environments, run pipelines and manage your own API tokens.
+      </p>
+      <button onClick={onBack}
+        className="mt-5 font-mono2 text-[10px] uppercase tracking-widest border border-white px-4 py-2.5 hover:bg-white hover:text-[--dark]">
+        Back to environments
+      </button>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { view: viewParam } = useParams<{ view: string }>();
@@ -3288,14 +3361,29 @@ export default function Dashboard() {
   const setView = (v: View) => navigate(v === 'overview' ? '/app' : `/app/${v}`);
   const signOut = async () => { await logout(); navigate('/'); };
 
+  // Which role this account holds in the team it's currently acting in.
+  // Read from /auth/me first because that is already resolved on the very first
+  // render — deriving it only from teamInfo would flash the full nav, including
+  // Billing, for a beat before /teams/me came back.
+  const myRole = me?.team?.role ?? teamInfo?.team.myRole;
+  // Billing and team settings are owner/admin territory. Every endpoint behind
+  // them is already gated with requireTeamAdmin, so a developer who reached
+  // them got a page of 403s — the nav was writing cheques the API wouldn't cash.
+  // Unknown role (team still loading) is treated as admin so the nav doesn't
+  // visibly reshuffle underneath a click.
+  const isAdmin = myRole !== 'developer';
+
   const items: { key: View; label: string }[] = [
     { key: 'overview', label: 'Environments' },
     { key: 'pipelines', label: 'CI pipelines' },
     { key: 'tokens', label: 'API tokens' },
-    { key: 'billing', label: 'Usage & billing' },
+    ...(isAdmin ? [{ key: 'billing' as View, label: 'Usage & billing' }] : []),
     { key: 'team', label: 'Team' },
-    { key: 'settings', label: 'Settings' },
+    ...(isAdmin ? [{ key: 'settings' as View, label: 'Settings' }] : []),
   ];
+  // Hiding the nav entry is not access control: /app/billing is a URL anyone can
+  // type, and it used to render a broken page rather than an explanation.
+  const restricted = !isAdmin && (view === 'billing' || view === 'settings');
   const titles: Record<View, string> = {
     overview: 'Environments', pipelines: 'CI pipelines',
     tokens: 'API tokens', billing: 'Usage & billing', team: 'Team', settings: 'Settings',
@@ -3445,23 +3533,28 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 sm:gap-4 shrink-0">
             {trialDaysLeft !== null && (
               <button
-                onClick={() => setView('billing')}
-                title="Free trial — parallel environments drop to 0 when it ends"
+                onClick={() => { if (isAdmin) setView('billing'); }}
+                disabled={!isAdmin}
+                title={isAdmin
+                  ? 'Free trial — parallel environments drop to 0 when it ends'
+                  : 'Free trial — parallel environments drop to 0 when it ends. Only owners and admins can change the plan.'}
                 // whitespace-nowrap is the actual fix: these chips used to wrap
                 // to three lines inside a fixed 64px header between 768px and
                 // ~1000px, overflowing the band. They now stay one line and
                 // simply don't appear until there's room for them.
                 className={`hidden xl:block font-mono2 text-[10px] border px-2 py-1 whitespace-nowrap transition-colors ${
+                  isAdmin ? '' : 'cursor-default'
+                } ${
                   trialDaysLeft <= 3
-                    ? 'border-[--red]/50 text-[#F07A6A] hover:border-[--red]'
-                    : 'border-[#E8B44C]/40 text-[#E8B44C] hover:border-[#E8B44C]'
+                    ? `border-[--red]/50 text-[#F07A6A] ${isAdmin ? 'hover:border-[--red]' : ''}`
+                    : `border-[#E8B44C]/40 text-[#E8B44C] ${isAdmin ? 'hover:border-[#E8B44C]' : ''}`
                 }`}
               >
                 {trialDaysLeft > 0 ? `Trial: ${trialDaysLeft}d left` : 'Trial ended'}
               </button>
             )}
             <span className="hidden xl:block font-mono2 text-[10px] border border-[--dark-line] px-2 py-1 text-[--dark-muted] whitespace-nowrap">{planLabel} · {limit} env{limit === 1 ? '' : 's'}</span>
-            <NotificationBell trialDaysLeft={trialDaysLeft} onTrialClick={() => setView('billing')} />
+            <NotificationBell trialDaysLeft={trialDaysLeft} onTrialClick={isAdmin ? () => setView('billing') : null} />
             {/* Account menu. "Sign out" used to sit as loose text between the
                 bell and the avatar, which put a rare, destructive action in the
                 middle of the two things people actually click, and left three
@@ -3472,7 +3565,7 @@ export default function Dashboard() {
               initials={initials}
               active={view === 'profile'}
               onProfile={() => setView('profile')}
-              onBilling={() => setView('billing')}
+              onBilling={isAdmin ? () => setView('billing') : null}
               onSignOut={signOut}
             />
           </div>
@@ -3485,7 +3578,7 @@ export default function Dashboard() {
           ))}
         </div>
         <main className="p-5 lg:p-8">
-          {trialDaysLeft !== null && <TrialBanner daysLeft={trialDaysLeft} onUpgrade={() => setView('billing')} />}
+          {trialDaysLeft !== null && <TrialBanner daysLeft={trialDaysLeft} onUpgrade={isAdmin ? () => setView('billing') : null} />}
           <StatusBanner />
           {/* Keyed on the team as well as the view.
               Keyed on the view alone, switching teams left every card mounted
@@ -3500,18 +3593,22 @@ export default function Dashboard() {
               dashboard first renders, so the initial mount doesn't immediately
               remount and fetch everything twice. onSwitched refreshes it. */}
           <div key={`${view}:${me?.team?.id ?? 'none'}`} className="view-in">
-            {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}
-            {view === 'pipelines' && <Pipelines />}
-            {view === 'tokens' && <Tokens />}
-            {view === 'billing' && <Billing />}
-            {view === 'team' && <Team />}
-            {view === 'settings' && (
-              <Settings teamName={teamName} myRole={teamInfo?.team.myRole} auditLog={teamInfo?.team.auditLog ?? false}
-                onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
-            )}
-            {view === 'profile' && (
-              <Profile email={me?.user.email ?? '—'} verified={me?.user.emailVerified ?? false} />
-            )}
+            {restricted ? (
+              <RestrictedView view={view} teamName={teamName} onBack={() => setView('overview')} />
+            ) : <>
+              {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} canUpgrade={isAdmin} />}
+              {view === 'pipelines' && <Pipelines />}
+              {view === 'tokens' && <Tokens />}
+              {view === 'billing' && <Billing />}
+              {view === 'team' && <Team />}
+              {view === 'settings' && (
+                <Settings teamName={teamName} myRole={teamInfo?.team.myRole} auditLog={teamInfo?.team.auditLog ?? false}
+                  onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
+              )}
+              {view === 'profile' && (
+                <Profile email={me?.user.email ?? '—'} verified={me?.user.emailVerified ?? false} />
+              )}
+            </>}
           </div>
         </main>
       </div>
