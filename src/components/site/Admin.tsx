@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  api, type AdminActivity, type AdminBackups, type AdminErrors, type AdminHost, type AdminHostDetail, type AdminHostUsage, type AdminOverview, type AdminStatusComponent,
+  api, type AdminActivity, type AdminBackups, type AdminErrors, type AdminHost, type AdminHostDetail, type AdminHostOvercommit, type AdminHostUsage, type AdminOverview, type AdminStatusComponent,
   type AdminSystemHealth, type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
   type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
@@ -161,6 +161,43 @@ function HostCapacityPanel({ usage, ramTotalMb, cpuTotal }: {
           here that describes a customer's experience rather than our capacity.
         </p>
       )}
+
+    </div>
+  );
+}
+
+/**
+ * The host's overcommit setting and what it has cost.
+ *
+ * Its own panel rather than a row inside "Measured capacity", because it must
+ * render on hosts that have no measured capacity to show. A host whose guests
+ * have stopped answering produces no usage block at all — and that is exactly
+ * the host whose starvation counter someone needs to see.
+ *
+ * Renders nothing when the host has never reported a ratio. An older agent has
+ * no opinion, and drawing "100% · not overcommitted" for it would be asserting
+ * something nobody measured.
+ */
+function HostOvercommitPanel({ overcommit }: { overcommit: AdminHostOvercommit }) {
+  const starved = overcommit.starvedGrants;
+  return (
+    <div className={`border p-4 ${starved ? 'border-[#F07A6A]/40' : 'border-[--dark-line]'}`}>
+      <p className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted] mb-3">Overcommit</p>
+      <div className="grid gap-2 grid-cols-2">
+        <Stat label="Promising" value={`${overcommit.pct}%`}
+          hint={overcommit.pct > 100 ? 'of physical RAM' : 'only what it has'} />
+        <Stat label="Starved grants" value={starved == null ? '—' : String(starved)}
+          hint={overcommit.starvedAt ? `last ${fmtAgo(overcommit.starvedAt)}` : 'promises always kept'}
+          tone={starved ? 'text-[#F07A6A]' : undefined} />
+      </div>
+      {!!starved && (
+        <p className="font-mono2 text-[10px] text-[#F07A6A] mt-2 max-w-[70ch]">
+          A guest asked for memory it had already paid for and this host had none to give. That is
+          this ratio being too high for what these customers actually do — lower RAM_OVERCOMMIT_PCT
+          on this host. The counter resets when the agent restarts, so read it next to when it last
+          moved.
+        </p>
+      )}
     </div>
   );
 }
@@ -305,6 +342,7 @@ function HostDetailModal({ host, onCancel }: { host: AdminHost; onCancel: () => 
             </div>
 
             <HostCapacityPanel usage={detail.host.usage} ramTotalMb={detail.host.ramMb.total} cpuTotal={detail.host.cpu.total} />
+            {detail.host.overcommit && <HostOvercommitPanel overcommit={detail.host.overcommit} />}
 
             {/* environments on this host */}
             <div>
@@ -1569,6 +1607,19 @@ export default function Admin() {
                     total={h.ramMb.total / 1024} unit="GB" decimals={1} />
                 </div>
                 <div className="flex items-center gap-2 justify-self-end">
+                  {/* Starvation is badged in the list, not only in the detail
+                      view. A host that cannot keep the memory promises it sold
+                      should be findable by scanning the fleet, not by opening
+                      each host in turn. Deliberately not gated on usage
+                      staleness: unlike the throttle badge, this number does not
+                      come from a guest sample, and the hosts whose guests have
+                      gone quiet are the ones most likely to be starving them. */}
+                  {!!h.overcommit?.starvedGrants && (
+                    <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#F07A6A]/50 text-[#F07A6A] px-2 py-0.5"
+                      title={`${h.overcommit.starvedGrants} time(s) a guest was refused memory it had already been promised${h.overcommit.starvedAt ? ` — last ${fmtAgo(h.overcommit.starvedAt)}` : ''}. This host promises ${h.overcommit.pct}% of its RAM; lower RAM_OVERCOMMIT_PCT.`}>
+                      {h.overcommit.starvedGrants} starved
+                    </span>
+                  )}
                   {!!h.usage?.cpuThrottledVms && !h.usage.stale && (
                     <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5"
                       title={`${h.usage.cpuThrottledVms} guest(s) hit their CPU cap — builds slowed by our quota, not their own code`}>

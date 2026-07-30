@@ -223,6 +223,13 @@ export function PrivacyPolicy() {
         Environment content has a retention period of effectively zero: the microVM and its storage
         are destroyed when the run ends. We keep no backup of it, because none is created.
       </p>
+      <p>
+        If your team configures outgoing webhooks, the delivery log keeps the event payload we sent
+        so you can see what left our systems: <strong>30 days</strong> for deliveries that succeeded,
+        <strong> 90 days</strong> for ones that failed, since a failure is what someone comes back to
+        investigate. The team&rsquo;s audit trail is kept for as long as the team exists and is deleted
+        with it &mdash; it is the record you would need to answer a question about your own account.
+      </p>
       <h2>7. Your rights</h2>
       <p>
         Under GDPR and the Swiss FADP you have the right to access, correct, delete, and export your

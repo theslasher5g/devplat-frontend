@@ -334,6 +334,17 @@ export interface AdminHostUsage {
   stale: boolean;
 }
 
+/** The host's overcommit setting and what it has cost. Separate from usage
+ *  because it arrives on different terms: a usage sample waits for every guest
+ *  to report, while a starved grant is a broken promise and is most worth
+ *  seeing on exactly the hosts whose guests have gone quiet. Null means the
+ *  host has never reported a ratio — which is not the same as reporting 100. */
+export interface AdminHostOvercommit {
+  pct: number;
+  starvedGrants: number | null;
+  starvedAt: string | null;
+}
+
 export interface AdminHost {
   id: string; name: string; location: string; status: 'online' | 'draining' | 'offline';
   drain: boolean; vms: number;
@@ -341,6 +352,7 @@ export interface AdminHost {
   cpu: { total: number; used: number };
   ramMb: { total: number; used: number };
   usage: AdminHostUsage | null;
+  overcommit: AdminHostOvercommit | null;
 }
 
 export interface AdminHostDetail {
@@ -351,6 +363,7 @@ export interface AdminHostDetail {
     ramMb: { total: number; used: number };
     cacheHitRate: number | null;
     usage: AdminHostUsage | null;
+    overcommit: AdminHostOvercommit | null;
   };
   environments: {
     id: string; teamName: string; vmId: string | null; status: string;
