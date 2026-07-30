@@ -1027,8 +1027,11 @@ function Tokens() {
 
 /* ---------- Billing: real data ---------- */
 
+// Mirrors the backend `plans` table. Solo is 1 parallel environment as of
+// migration 038 — this copy said 2 and is shown on the screen where someone
+// decides to pay, which is the worst place for it to be out of date.
 const TIER_CARDS = [
-  { tier: 'solo' as const, name: 'Solo', chf: 19, envs: 2, vcpu: 2, ramGb: 4 },
+  { tier: 'solo' as const, name: 'Solo', chf: 19, envs: 1, vcpu: 2, ramGb: 4 },
   { tier: 'team' as const, name: 'Team', chf: 79, envs: 5, vcpu: 4, ramGb: 8 },
   { tier: 'scale' as const, name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12 },
 ];

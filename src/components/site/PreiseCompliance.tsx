@@ -27,45 +27,68 @@ export function Preise({ go }: { go: (p: Page) => void }) {
       </section>
 
       <section className="border-b hairline">
-        <div className="mx-auto max-w-6xl px-5 py-16 grid gap-6 lg:grid-cols-4">
-          <div className="border hairline bg-white p-7 flex flex-col">
-            <p className="eyebrow">Free</p>
-            <p className="mt-4 font-doto text-5xl">0<span className="text-lg align-top text-[--red]">CHF</span></p>
-            <p className="mt-2 text-sm text-[--ink-soft]">To try it out. 14 days.</p>
-            <p className="mt-3 font-mono2 text-[11px] text-[--ink-soft]">up to 1 vCPU / 2 GB per environment</p>
-            <ul className="mt-5 space-y-2 text-sm text-[--ink-soft] flex-1">
-              {['1 seat — no team invites', '1 parallel environment', '1 vCPU / 2 GB per environment', '14-day trial (once per account)', 'Standard image cache'].map((f) => (
-                <li key={f} className="flex gap-2"><span className="text-[--red]">—</span>{f}</li>
-              ))}
-            </ul>
-            <button onClick={() => go('auth')} className="btn-ghost mt-6 py-2.5 text-sm">Create an account</button>
-          </div>
-          {tiers.map((t) => (
-            <div key={t.name} className={`border p-7 flex flex-col ${t.hot ? 'bg-[--ink] text-[--dark-text] border-[--ink] relative' : 'bg-white hairline'}`}>
-              {t.hot && <span className="absolute -top-3 left-6 bg-[--red] text-white font-mono2 text-[10px] tracking-widest uppercase px-2 py-1">Popular</span>}
-              <p className="eyebrow" style={t.hot ? { color: 'var(--dark-muted)' } : undefined}>{t.name}</p>
-              <p className="mt-4 font-doto text-5xl">{yearly ? Math.round(t.chf * 0.83) : t.chf}<span className="text-lg align-top text-[--red]">CHF</span></p>
-              <p className={`mt-2 text-sm ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{t.tagline}</p>
-              <p className="mt-3 font-mono2 text-[11px]" style={t.hot ? { color: 'var(--dark-muted)' } : { color: 'var(--ink-soft)' }}>up to {t.vcpu} vCPU / {t.ramGb} GB per environment</p>
-              <ul className={`mt-5 space-y-2 text-sm flex-1 ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>
-                {t.features.map((f) => {
-                  const [label, soon] = f.split(' — coming soon');
-                  return (
-                    <li key={f} className="flex gap-2">
-                      <span className="text-[--red]">—</span>
-                      <span>
-                        {label}
-                        {soon === '' && <span className="ml-1.5 font-mono2 text-[10px] uppercase tracking-wider text-[#E8B44C]">Coming soon</span>}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <button onClick={() => go('auth')} className={`mt-6 py-2.5 text-sm font-medium transition-colors ${t.hot ? 'bg-white text-[--ink] hover:bg-[--red] hover:text-white' : 'btn-ink'}`}>
-                Choose {t.name}
-              </button>
-            </div>
-          ))}
+        {/* Every card has an identical shape — name, price, one line of
+            positioning, the two numbers that define the tier, CTA — so the rows
+            line up across the grid without any height hacks. The per-plan
+            feature bullets used to live here and were different lengths per
+            card, which is what made the row ragged; they are now in the
+            comparison table below, where a matrix belongs and where each fact
+            exists once. */}
+        <div className="mx-auto max-w-6xl px-5 py-16 grid gap-6 lg:grid-cols-4 items-stretch">
+          {([
+            { name: 'Free', chf: 0, envs: 1, vcpu: 1, ramGb: 2, tagline: 'No credit card required.' },
+            ...tiers,
+          ] as { name: string; chf: number; envs: number; vcpu: number; ramGb: number; tagline: string; hot?: boolean }[])
+            .map((t) => {
+              const free = t.chf === 0;
+              return (
+                <div key={t.name}
+                  className={`border p-7 flex flex-col ${t.hot ? 'bg-[--ink] text-[--dark-text] border-[--ink] relative' : 'bg-white hairline'}`}>
+                  {t.hot && <span className="absolute -top-3 left-6 bg-[--red] text-white font-mono2 text-[10px] tracking-widest uppercase px-2 py-1">Popular</span>}
+                  <p className="eyebrow" style={t.hot ? { color: 'var(--dark-muted)' } : undefined}>{t.name}</p>
+                  <p className="mt-4 font-doto text-5xl leading-none">
+                    {free ? 0 : yearly ? Math.round(t.chf * 0.83) : t.chf}
+                    <span className="text-lg align-top text-[--red]">CHF</span>
+                  </p>
+                  <p className={`mt-2 font-mono2 text-[10px] uppercase tracking-widest ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>
+                    {free ? '14 days, then pick a plan' : yearly ? 'per month, billed yearly' : 'per month'}
+                  </p>
+                  {/* Fixed height so a tagline that wraps to two lines doesn't
+                      push its card's numbers out of line with the others. */}
+                  <p className={`mt-4 text-sm min-h-[2.75rem] ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{t.tagline}</p>
+                  {/* Label above value, not beside it. A card is ~204px wide
+                      inside its padding at the four-column breakpoint, which is
+                      not enough for "Per environment" next to "6 vCPU · 12 GB" —
+                      the label wrapped on that row and not the one above it,
+                      which looked like a mistake. Stacked, nothing wraps at any
+                      width and the values line up down the row. */}
+                  <dl className={`mt-2 border-t ${t.hot ? 'border-[--dark-line]' : 'hairline'}`}>
+                    {[
+                      ['Parallel environments', String(t.envs)],
+                      ['Per environment', `${t.vcpu} vCPU · ${t.ramGb} GB`],
+                    ].map(([label, value]) => (
+                      <div key={label} className={`py-3 border-b ${t.hot ? 'border-[--dark-line]' : 'hairline'}`}>
+                        <dt className={`font-mono2 text-[10px] uppercase tracking-widest ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{label}</dt>
+                        <dd className={`mt-1 font-mono2 text-[15px] ${t.hot ? 'text-[--dark-text]' : 'text-[--ink]'}`}>{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {/* mt-auto pins every CTA to the bottom edge, so the buttons
+                      stay level even if a card ever grows a row. */}
+                  <button onClick={() => go('auth')} className="mt-auto pt-6 w-full">
+                    {/* Fixed height instead of padding: btn-ghost carries a 1px
+                        border and the filled variants don't, so equal padding
+                        left the outlined button 2px taller and its label a pixel
+                        off the others. */}
+                    <span className={`flex h-11 w-full items-center justify-center text-sm font-medium transition-colors ${
+                      free ? 'btn-ghost' : t.hot ? 'bg-white text-[--ink] hover:bg-[--red] hover:text-white' : 'btn-ink'
+                    }`}>
+                      {free ? 'Create an account' : `Choose ${t.name}`}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
         </div>
         <div className="mx-auto max-w-6xl px-5 pb-16">
           <div className="border hairline bg-white p-7 md:flex items-center justify-between gap-8">
@@ -96,20 +119,27 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               </thead>
               <tbody className="[&>tr]:border-b [&>tr]:hairline [&>tr:last-child]:border-0">
                 {([
+                  // This table is now the only place per-plan features are
+                  // listed. They used to be bullets on the cards as well, in
+                  // different quantities per card — which made the row ragged
+                  // and kept the same facts in two places that could disagree.
                   ['Price / month', ['CHF 0', 'CHF 19', 'CHF 79', 'CHF 249']],
                   // Seats sit right under the price because they decide whether
-                  // a plan fits at all — every other cap was in this table and
-                  // this one wasn't, so people found out when an invite bounced.
-                  // Mirrors plans.max_members (backend migration 031).
+                  // a plan fits at all. Mirrors plans.max_members (migration 031).
                   ['Team seats', ['1', '1', 'up to 10', 'up to 30']],
-                  ['Parallel environments', ['1', '2', '5', '8']],
+                  // Solo is 1, not 2 — see backend migration 038.
+                  ['Parallel environments', ['1', '1', '5', '8']],
                   ['vCPU per environment', ['1', '2', '4', '6']],
                   ['RAM per environment', ['2 GB', '4 GB', '8 GB', '12 GB']],
+                  ['Time limit', ['14 days', 'none', 'none', 'none']],
+                  ['CLI + CI integration', [true, true, true, true]],
                   ['Image cache', [true, true, true, true]],
                   ['Custom images in cache', [false, false, true, true]],
                   ['Team management & roles', [false, false, true, true]],
                   ['Priority scheduling', [false, false, false, true]],
                   ['Audit log', [false, false, false, true]],
+                  ['SSO (SAML)', ['—', '—', '—', 'Coming soon']],
+                  ['Latency SLA', ['—', '—', '—', '99.5 %']],
                   ['Support', ['—', 'Community', 'Email < 24 h', '< 4 h']],
                 ] as [string, (string | boolean)[]][]).map(([label, cells]) => (
                   <tr key={label}>
