@@ -74,12 +74,15 @@ export interface TeamSummary {
 
 export interface TeamList {
   teams: TeamSummary[];
-  /** The free trial is once per person, not per team. False means any team this
-   *  user creates from now on starts without one and needs a plan before it can
-   *  run an environment — worth saying before they create it, not after. */
+  /** The free trial is once per person, not per team. */
   trialAvailable: boolean;
   ownedTeams: number;
   maxOwnedTeams: number;
+  /** Answered by the backend rather than re-derived here, so the button and the
+   *  endpoint can't drift apart. Running more than one team is a paid feature;
+   *  joining teams you're invited to always works. */
+  canCreateTeam: boolean;
+  createBlockedReason: 'paid_plan_required' | 'team_limit_reached' | null;
 }
 
 export interface AdminSystemHealth {

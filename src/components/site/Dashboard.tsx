@@ -2296,14 +2296,11 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  const [meta, setMeta] = useState<{ trialAvailable: boolean; ownedTeams: number; maxOwnedTeams: number } | null>(null);
+  const [meta, setMeta] = useState<TeamList | null>(null);
 
   const load = useCallback(() => {
     api<TeamList>('/teams')
-      .then((d) => {
-        setTeams(d.teams);
-        setMeta({ trialAvailable: d.trialAvailable, ownedTeams: d.ownedTeams, maxOwnedTeams: d.maxOwnedTeams });
-      })
+      .then((d) => { setTeams(d.teams); setMeta(d); })
       .catch(() => setTeams([]));
   }, []);
   useEffect(() => { if (open && teams === null) load(); }, [open, teams, load]);
@@ -2365,13 +2362,13 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
                   <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="New team name"
                     onKeyDown={(e) => { if (e.key === 'Enter') void create(); }}
                     className="w-full bg-transparent border border-[--dark-line] px-3 py-2 text-sm outline-none focus:border-white" />
-                  {/* Said before the team exists, not discovered after. The
-                      trial is once per person, so a second team starts on no
-                      plan and can't run anything until one is chosen. */}
+                  {/* Said before the team exists, not discovered after. Only
+                      shown to people who can actually create one — the button
+                      is gone entirely otherwise. */}
                   {meta && !meta.trialAvailable && (
                     <p className="font-mono2 text-[10px] text-[#E8B44C] leading-relaxed">
                       Your free trial has already been used, so this team starts without one —
-                      it needs a plan before it can run environments.
+                      it needs its own plan before it can run environments.
                     </p>
                   )}
                   <div className="flex gap-2">
@@ -2382,9 +2379,17 @@ function TeamSwitcher({ current, onSwitched }: { current: string; onSwitched: ()
                     <button onClick={() => { setCreating(false); setErr(''); }} className="font-mono2 text-[10px] text-[--dark-muted] hover:text-white px-2">Cancel</button>
                   </div>
                 </div>
-              ) : meta && meta.ownedTeams >= meta.maxOwnedTeams ? (
+              ) : meta && !meta.canCreateTeam ? (
+                /* No create button at all when it isn't allowed. Offering one
+                   that fails on click is worse than not offering it, and the
+                   earlier version — which let the team be created but arrive
+                   unable to run anything — was worse still. The reason comes
+                   from the backend so this can't disagree with the endpoint. */
                 <p className="font-mono2 text-[10px] text-[--dark-muted] leading-relaxed">
-                  You own {meta.ownedTeams} of {meta.maxOwnedTeams} teams. Leave or delete one to create another.
+                  {meta.createBlockedReason === 'team_limit_reached'
+                    ? <>You own {meta.ownedTeams} of {meta.maxOwnedTeams} teams. Leave or delete one to create another.</>
+                    : <>Running more than one team needs a paid plan. You can still be invited to other
+                        teams and switch between them here at any time.</>}
                 </p>
               ) : (
                 <button onClick={() => setCreating(true)}

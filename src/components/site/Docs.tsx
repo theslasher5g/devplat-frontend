@@ -446,8 +446,10 @@ devplat ❯ mvn verify   # or gradle test, pytest, go test …`}</Code>
             <p className="text-sm text-[--ink-soft]">
               The free tier is a 14-day trial with one parallel environment; after it lapses you'll
               need a paid plan to start environments. The trial is <span className="text-[--ink] font-medium">once
-              per account</span>, not per team — you can create further teams, but they start on no
-              plan rather than on a fresh trial. Paid plans and their exact caps are on the{' '}
+              per account</span>, not per team, and running <span className="text-[--ink] font-medium">more than
+              one team</span> is a paid feature — on the free tier you can be invited to other teams
+              and switch between them freely, but you can't create a second one of your own. Paid plans
+              and their exact caps are on the{' '}
               <button onClick={() => go('preise')} className="link-underline text-[--ink] font-medium">pricing page</button>.
             </p>
           </section>
