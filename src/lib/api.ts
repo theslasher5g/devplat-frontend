@@ -123,6 +123,9 @@ export interface TeamInfo {
      *  values mean the tier's lifetime is fixed. */
     ttlDefaultMinutes: number;
     ttlMaxMinutes: number;
+    /** Whether this tier may read its audit log. Activity is recorded on every
+     *  plan; only reading it is an entitlement. */
+    auditLog: boolean;
   };
   members: { userId: string; email: string; role: string; joinedAt: string }[];
   pendingInvites: { id: string; email: string; role: string; expiresAt: string }[];

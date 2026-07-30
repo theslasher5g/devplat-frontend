@@ -34,7 +34,7 @@ export function Preise({ go }: { go: (p: Page) => void }) {
             <p className="mt-2 text-sm text-[--ink-soft]">To try it out. 14 days.</p>
             <p className="mt-3 font-mono2 text-[11px] text-[--ink-soft]">up to 1 vCPU / 2 GB per environment</p>
             <ul className="mt-5 space-y-2 text-sm text-[--ink-soft] flex-1">
-              {['1 parallel environment', '1 vCPU / 2 GB per environment', '14-day trial', 'Standard image cache'].map((f) => (
+              {['1 seat — no team invites', '1 parallel environment', '1 vCPU / 2 GB per environment', '14-day trial (once per account)', 'Standard image cache'].map((f) => (
                 <li key={f} className="flex gap-2"><span className="text-[--red]">—</span>{f}</li>
               ))}
             </ul>
@@ -97,6 +97,11 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               <tbody className="[&>tr]:border-b [&>tr]:hairline [&>tr:last-child]:border-0">
                 {([
                   ['Price / month', ['CHF 0', 'CHF 19', 'CHF 79', 'CHF 249']],
+                  // Seats sit right under the price because they decide whether
+                  // a plan fits at all — every other cap was in this table and
+                  // this one wasn't, so people found out when an invite bounced.
+                  // Mirrors plans.max_members (backend migration 031).
+                  ['Team seats', ['1', '1', 'up to 10', 'up to 30']],
                   ['Parallel environments', ['1', '2', '5', '8']],
                   ['vCPU per environment', ['1', '2', '4', '6']],
                   ['RAM per environment', ['2 GB', '4 GB', '8 GB', '12 GB']],

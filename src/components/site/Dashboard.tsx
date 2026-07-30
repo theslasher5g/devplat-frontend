@@ -1329,6 +1329,27 @@ function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
 }
 
 /** Filterable, exportable team audit trail. */
+/** Shown instead of the trail on plans that don't include it. Deliberately says
+ *  that recording continues — a customer who upgrades later gets their real
+ *  history, and someone weighing the upgrade should know that rather than
+ *  assume the log starts empty on the day they pay. */
+function AuditLogLocked() {
+  return (
+    <Card>
+      <CardHead title="Activity log" right={
+        <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5">Scale</span>
+      } />
+      <div className="p-5">
+        <p className="text-sm text-[--dark-muted] max-w-[70ch]">
+          Every token, member and settings change on this team is already being recorded — reading and
+          exporting that trail is included with the Scale plan. Upgrading opens the full history, not
+          just what happens afterwards.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 function AuditLogCard() {
   // Collapsed by default, and it fetches nothing until opened: the log is
   // consulted occasionally and reviewed rarely, but expanded it pushed
@@ -2183,7 +2204,9 @@ function WebhooksCard() {
   );
 }
 
-function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 'owner' | 'admin' | 'developer'; onRenamed: () => void }) {
+function Settings({ teamName, myRole, auditLog, onRenamed }: {
+  teamName: string; myRole?: 'owner' | 'admin' | 'developer'; auditLog: boolean; onRenamed: () => void;
+}) {
   const canManage = myRole === 'owner' || myRole === 'admin';
   const [name, setName] = useState(teamName);
   const [msg, setMsg] = useState('');
@@ -2219,7 +2242,11 @@ function Settings({ teamName, myRole, onRenamed }: { teamName: string; myRole?: 
           and reviewed rarely, but expanded it pushed everything below it —
           including leaving the team — off the screen. */}
       {canManage && <TeamSecurityCard isOwner={myRole === 'owner'} />}
-      {canManage && <AuditLogCard />}
+      {/* Reading the trail is a plan entitlement. The locked variant is shown
+          rather than hiding the section: "this exists and needs a plan" is
+          useful, silently missing is not — and it's also the honest answer,
+          since activity keeps being recorded either way. */}
+      {canManage && (auditLog ? <AuditLogCard /> : <AuditLogLocked />)}
       {myRole === 'owner' && <DeleteTeamCard teamName={teamName} />}
     </div>
   );
@@ -3457,14 +3484,27 @@ export default function Dashboard() {
         <main className="p-5 lg:p-8">
           {trialDaysLeft !== null && <TrialBanner daysLeft={trialDaysLeft} onUpgrade={() => setView('billing')} />}
           <StatusBanner />
-          <div key={view} className="view-in">
+          {/* Keyed on the team as well as the view.
+              Keyed on the view alone, switching teams left every card mounted
+              and therefore showing the team you just left: the tokens list, the
+              member list, invoices, the security policy, webhooks. Each of them
+              loads once on mount with no dependency on which team is current,
+              so nothing ever told them to look again — the same fault as the
+              switcher's cached list, one level up and with more on screen.
+              Changing the key remounts them, which is the one signal a
+              load-on-mount component understands.
+              me.team.id rather than teamInfo's: it is already resolved when the
+              dashboard first renders, so the initial mount doesn't immediately
+              remount and fetch everything twice. onSwitched refreshes it. */}
+          <div key={`${view}:${me?.team?.id ?? 'none'}`} className="view-in">
             {view === 'overview' && <Overview limit={limit} planLabel={planLabel} goView={setView} />}
             {view === 'pipelines' && <Pipelines />}
             {view === 'tokens' && <Tokens />}
             {view === 'billing' && <Billing />}
             {view === 'team' && <Team />}
             {view === 'settings' && (
-              <Settings teamName={teamName} myRole={teamInfo?.team.myRole} onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
+              <Settings teamName={teamName} myRole={teamInfo?.team.myRole} auditLog={teamInfo?.team.auditLog ?? false}
+                onRenamed={() => { void refresh(); api<TeamInfo>('/teams/me').then(setTeamInfo).catch(() => {}); }} />
             )}
             {view === 'profile' && (
               <Profile email={me?.user.email ?? '—'} verified={me?.user.emailVerified ?? false} />
