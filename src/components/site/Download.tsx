@@ -93,12 +93,25 @@ export default function Download({ go }: { go: (p: Page) => void }) {
           </div>
           <div className="min-w-0">
             <Eyebrow>Verify the download</Eyebrow>
-            <h2 className="text-3xl font-semibold tracking-tight">Checksums for every release.</h2>
+            <h2 className="text-3xl font-semibold tracking-tight">Every release is signed.</h2>
             <p className="mt-4 text-sm text-[--ink-soft] max-w-[56ch]">
-              Every release ships with a SHA-256 checksum file. The install script verifies it
-              automatically; if you download a binary directly, compare it yourself:
+              The checksum file is signed with an Ed25519 key that never touches the release host.
+              That distinction is the whole point: a checksum served from the same server as the
+              download only proves the file arrived intact, because whoever could replace the binary
+              could rewrite the checksum beside it. The signature is what a compromised release host
+              cannot forge.
+            </p>
+            <p className="mt-3 text-sm text-[--ink-soft] max-w-[56ch]">
+              The install script and <span className="font-mono2 text-[13px]">devplat upgrade</span>{' '}
+              both verify it and refuse to install if it does not match. To check by hand:
             </p>
             <pre className="mt-4 font-mono2 text-xs bg-[--ink] text-[--dark-text] p-4 overflow-x-auto">{`$ curl -sfO https://get.devplat.ch/${version}/checksums.txt
+$ curl -sfO https://get.devplat.ch/${version}/checksums.txt.sig
+$ curl -sfO https://get.devplat.ch/devplat-release.pub.pem
+$ openssl pkeyutl -verify -pubin -inkey devplat-release.pub.pem \\
+    -rawin -in checksums.txt -sigfile checksums.txt.sig
+Signature Verified Successfully
+
 $ sha256sum -c checksums.txt --ignore-missing
 devplat-${version}-linux-amd64.tar.gz: OK`}</pre>
             <div className="mt-6 border hairline">
