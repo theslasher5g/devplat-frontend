@@ -196,6 +196,11 @@ export function PrivacyPolicy() {
         Each is contractually bound to process data only on our instructions. We will announce new
         sub-processors before they start processing your data, so you have a chance to object.
       </p>
+      <p>
+        That list is exhaustive for the website too. Fonts, icons and scripts are served from our own
+        domain &mdash; there is no CDN, no font service and no analytics provider, so simply loading a
+        page here does not disclose your IP address to anyone but us.
+      </p>
       <h2>5. Where your data is processed</h2>
       <p>
         <strong>Test environments</strong> — the microVMs your containers run in — execute exclusively on
