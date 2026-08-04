@@ -1677,15 +1677,25 @@ function Team() {
     setMsg('');
     if (!inviteMail.includes('@')) { setErr('Please enter a valid email address.'); return; }
     try {
-      await api('/teams/me/invites', { body: { email: inviteMail, role: inviteRole } });
-      setMsg(`Invitation sent to ${inviteMail}.`);
+      const res = await api<{ seatCost: { chfPerSeatMonthly: number; billableAfterAccept: number } | null }>(
+        '/teams/me/invites', { body: { email: inviteMail, role: inviteRole } },
+      );
+      // Say what it costs, at the moment it is decided. On a seat-priced plan
+      // the sixth developer adds to the invoice, and a charge whose first
+      // appearance is a statement arrives as a support thread rather than as
+      // revenue. Stated as a fact, not asked as a confirmation — the invite is
+      // already sent, and an owner adding a colleague is doing what we want.
+      const cost = res.seatCost;
+      setMsg(cost && cost.billableAfterAccept > 0
+        ? `Invitation sent to ${inviteMail}. Once accepted, your plan bills ${cost.billableAfterAccept} seat${cost.billableAfterAccept === 1 ? '' : 's'} beyond the included ones — CHF ${cost.billableAfterAccept * cost.chfPerSeatMonthly}/month, prorated from the day they join.`
+        : `Invitation sent to ${inviteMail}.`);
       setInviteMail('');
       setInviting(false);
       load();
     } catch (e) {
       setErr(
         e instanceof ApiError && e.code === 'already_member' ? 'This person is already on the team.'
-          // The API explains exactly how many seats the plan includes.
+          // The API explains the cap and what to do about it.
           : e instanceof ApiError && e.code === 'seat_limit_reached' ? e.message
             : 'Invitation could not be sent.',
       );

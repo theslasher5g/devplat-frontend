@@ -5,6 +5,7 @@ import Home from '@/components/site/Home';
 import PromoBanner from '@/components/site/PromoBanner';
 import { Footer, Nav, type Page, ScrollProgress } from '@/components/site/Shared';
 import { AuthProvider, RequireAuth } from '@/lib/auth';
+import { TEAM_BASE, TEAM_INCLUDED, TEAM_SEAT } from '@/lib/plans';
 
 /*
  * Route-based code splitting.
@@ -130,10 +131,13 @@ function usePrefetch() {
 // up); the static defaults in index.html cover non-JS crawlers. Keyed to the
 // page the marketing router resolved.
 const PAGE_META: Partial<Record<Page, { title: string; description: string }>> = {
-  home: { title: 'devplat — Remote Testcontainers backend, hosted in Switzerland', description: 'Run integration-test containers on remote Firecracker microVMs — zero code changes, flat pricing by parallelism, hosted in Basel.' },
+  home: { title: 'devplat — Remote Testcontainers backend, hosted in Switzerland', description: 'Run integration-test containers on remote Firecracker microVMs — zero code changes, priced per team, on our own hardware in Basel. Your test data never leaves Switzerland.' },
   technik: { title: 'How it works — devplat', description: 'One tunnel, one scheduler, one microVM per test run. How devplat redirects the Docker endpoint so your tests run unchanged against remote containers.' },
   security: { title: 'Security model — devplat', description: 'KVM isolation, per-VM networking, egress caps, WireGuard-only control plane, and a hard server-side TTL. The exact mechanisms behind each boundary.' },
-  preise: { title: 'Pricing — devplat', description: 'Flat pricing by parallelism, no per-minute bills, no overages. Plans from CHF 19 to CHF 249 per month. 14-day free trial, no card.' },
+  // Interpolated from lib/plans.ts, not typed in. This is the Google snippet:
+  // it said "from CHF 19 to CHF 249" — two prices that no longer exist — and a
+  // search result is the first thing a buyer compares against.
+  preise: { title: 'Pricing — devplat', description: `Priced per team, not per minute: CHF ${TEAM_BASE}/month for ${TEAM_INCLUDED} developers, then CHF ${TEAM_SEAT} each. No metering, no overages. 14-day trial, no card.` },
   download: { title: 'Download the CLI — devplat', description: 'One static Go binary. Install on Linux, Windows, or CI in one line — then run your tests against remote containers.' },
   docs: { title: 'Docs — devplat', description: 'Install, authenticate, connect, and run your tests against a remote Testcontainers backend. CLI reference, CI setup, and troubleshooting.' },
   faq: { title: 'Community & FAQ — devplat', description: 'Answers to the questions developers ask before they sign up — plus the community and support channels for when yours isn’t here.' },
