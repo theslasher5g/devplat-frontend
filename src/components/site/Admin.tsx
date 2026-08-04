@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import {
   api, type AdminActivity, type AdminBackups, type AdminErrors, type AdminHost, type AdminHostDetail, type AdminHostOvercommit, type AdminHostUsage, type AdminOverview, type AdminStatusComponent,
   type AdminSystemHealth, type AdminTeam, type AdminTeamDetail, type AdminTimeseries, type AdminUser, type AuditEntry, type PlanTier,
-  type PostType, type StatusLevel, type StatusPost,
+  type EnterpriseEnquiryRow, type PostType, type StatusLevel, type StatusPost,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { AuditList, Logo } from './Shared';
@@ -906,14 +906,32 @@ function MrrByTier({ overview }: { overview: AdminOverview }) {
         {rows.map((r) => (
           <div key={r.tier}>
             <div className="flex items-center justify-between text-xs font-mono2 mb-1">
-              <span>{r.label} <span className="text-[--dark-muted]">× {r.count}</span></span>
+              <span>
+                {r.label} <span className="text-[--dark-muted]">× {r.count}</span>
+                {/* An asterisk rather than a hidden row: a negotiated tier still
+                    earns money, we just don't know how much from here. */}
+                {!r.priceKnown && <span className="text-[#E8B44C]" title="Sold by conversation — list price shown, not the agreed one"> *</span>}
+              </span>
               <span className="text-[--dark-muted]">CHF {r.chfTotal}</span>
             </div>
-            <div className="h-2 bg-white/[0.08] border border-[--dark-line]">
-              <div className="h-full bg-[#57C99A]/70" style={{ width: `${total > 0 ? Math.round((r.chfTotal / total) * 100) : 0}%` }} />
+            {/* Base and seats are split inside the bar, because which of the two
+                is growing is the question the seat model was meant to answer. */}
+            <div className="h-2 bg-white/[0.08] border border-[--dark-line] flex">
+              <div className="h-full bg-[#57C99A]/70" style={{ width: `${total > 0 ? (r.chfBase / total) * 100 : 0}%` }} />
+              <div className="h-full bg-[#57C99A]/35" style={{ width: `${total > 0 ? (r.chfSeats / total) * 100 : 0}%` }} />
             </div>
+            {r.chfSeats > 0 && (
+              <p className="font-mono2 text-[10px] text-[--dark-muted] mt-1">
+                CHF {r.chfBase} base + CHF {r.chfSeats} from {r.billableSeats} seat{r.billableSeats === 1 ? '' : 's'}
+              </p>
+            )}
           </div>
         ))}
+        {rows.some((r) => !r.priceKnown) && (
+          <p className="font-mono2 text-[10px] text-[--dark-muted] pt-1">
+            <span className="text-[#E8B44C]">*</span> Sold by conversation — the list price is shown, not what was agreed.
+          </p>
+        )}
       </div>
     </Card>
   );
@@ -1017,9 +1035,119 @@ function ActivityFeed({ activity }: { activity: AdminActivity }) {
   );
 }
 
-type AdminView = 'overview' | 'teams' | 'users' | 'hosts' | 'system' | 'errors' | 'backups' | 'audit' | 'status';
+/**
+ * Enterprise enquiries — the inbox for the tier that has no checkout.
+ *
+ * Loaded lazily when the tab is opened rather than with the rest of the admin
+ * dashboard: it is the one view whose data is worthless if stale, and someone
+ * who opens it is about to act on what they see.
+ *
+ * Status is the whole interaction. It is not a CRM and should not become one;
+ * four values are enough to answer "has anyone replied to this", which is the
+ * only question that actually loses money when unanswered.
+ */
+function EnquiriesView() {
+  const [rows, setRows] = useState<EnterpriseEnquiryRow[] | null>(null);
+  const [filter, setFilter] = useState<'all' | 'new' | 'contacted' | 'won' | 'lost'>('all');
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = useCallback(() => {
+    const q = filter === 'all' ? '' : `?status=${filter}`;
+    api<{ enquiries: EnterpriseEnquiryRow[] }>(`/admin/enquiries${q}`)
+      .then((d) => setRows(d.enquiries))
+      .catch(() => { setRows([]); setErr('Could not load enquiries.'); });
+  }, [filter]);
+  useEffect(load, [load]);
+
+  const setStatus = async (id: string, status: EnterpriseEnquiryRow['status']) => {
+    setBusy(id); setErr('');
+    try {
+      await api(`/admin/enquiries/${id}`, { method: 'PATCH', body: { status } });
+      // Refetch rather than patching in place: the list is ordered with new
+      // first, so a status change reorders it, and a locally-mutated row would
+      // sit in the wrong place until the next load.
+      load();
+    } catch {
+      setErr('Could not update that enquiry.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const STATUSES: EnterpriseEnquiryRow['status'][] = ['new', 'contacted', 'won', 'lost'];
+  const tone: Record<EnterpriseEnquiryRow['status'], string> = {
+    new: 'text-[#E8B44C] border-[#E8B44C]/40',
+    contacted: 'text-white border-[--dark-line]',
+    won: 'text-[#57C99A] border-[#57C99A]/50',
+    lost: 'text-[--dark-muted] border-[--dark-line]',
+  };
+
+  return (
+    <Card>
+      <CardHead title="Enterprise enquiries" right={
+        <div className="flex gap-1 font-mono2 text-[10px]">
+          {(['all', ...STATUSES] as const).map((s) => (
+            <button key={s} onClick={() => setFilter(s)}
+              className={`px-2 py-1 border capitalize ${filter === s ? 'border-white text-white' : 'border-[--dark-line] text-[--dark-muted] hover:text-white'}`}>
+              {s}
+            </button>
+          ))}
+        </div>
+      } />
+      {err && <p className="px-5 py-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
+      <div className="divide-y divide-[--dark-line]">
+        {rows === null && <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">Loading …</p>}
+        {rows?.length === 0 && (
+          <p className="px-5 py-4 font-mono2 text-xs text-[--dark-muted]">
+            {filter === 'all'
+              ? 'No enquiries yet. They arrive from the pricing page and the billing view.'
+              : `No enquiries with status "${filter}".`}
+          </p>
+        )}
+        {rows?.map((e) => (
+          <div key={e.id} className="px-5 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {e.company}
+                  {e.teamSize !== null && <span className="text-[--dark-muted] font-normal"> · {e.teamSize} developers</span>}
+                </p>
+                <p className="font-mono2 text-[11px] text-[--dark-muted] mt-0.5 break-all">
+                  <a href={`mailto:${e.email}`} className="hover:text-white underline underline-offset-2">{e.email}</a>
+                  {' · '}{fmtDate(e.createdAt)}{' · via '}{e.source}
+                  {e.teamName && ` · account: ${e.teamName}`}
+                </p>
+              </div>
+              <span className={`font-mono2 text-[10px] border px-2 py-0.5 shrink-0 capitalize ${tone[e.status]}`}>{e.status}</span>
+            </div>
+            {/* The field worth reading. whitespace-pre-wrap because people write
+                in paragraphs and a flattened enquiry is harder to answer. */}
+            {e.message && (
+              <p className="text-sm text-[--dark-muted] mt-3 whitespace-pre-wrap break-words max-w-[80ch]">{e.message}</p>
+            )}
+            <div className="flex flex-wrap gap-1 mt-3 font-mono2 text-[10px]">
+              {STATUSES.filter((s) => s !== e.status).map((s) => (
+                <button key={s} onClick={() => setStatus(e.id, s)} disabled={busy === e.id}
+                  className="border border-[--dark-line] text-[--dark-muted] px-2 py-1 capitalize hover:text-white hover:border-white disabled:opacity-40">
+                  Mark {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+type AdminView = 'overview' | 'enquiries' | 'teams' | 'users' | 'hosts' | 'system' | 'errors' | 'backups' | 'audit' | 'status';
 const ADMIN_NAV: { key: AdminView; label: string }[] = [
   { key: 'overview', label: 'Overview' },
+  // Second, ahead of everything operational. The sales-led tier only works if
+  // someone reads these, and a tab at the far end of the row is a tab nobody
+  // opens — which would make the enquiry form a place leads go to be lost.
+  { key: 'enquiries', label: 'Enquiries' },
   { key: 'teams', label: 'Teams' },
   { key: 'users', label: 'Users' },
   { key: 'hosts', label: 'Hosts' },
@@ -1432,6 +1560,7 @@ function ErrorsPanel() {
 function AdminIcon({ name }: { name: AdminView }) {
   const p: Record<AdminView, React.ReactNode> = {
     overview: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+    enquiries: <><path d="M3 6.5h18v11H3z" /><path d="m3 7 9 6 9-6" /></>,
     teams: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17 13.5a5.5 5.5 0 0 1 3.5 5.5" /></>,
     users: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /></>,
     hosts: <><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
@@ -1545,7 +1674,7 @@ export default function Admin() {
         {/* KPI row */}
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Teams" value={overview ? String(overview.totalTeams) : '…'} sub={overview ? `+${overview.newTeams7d} in 7d · ${overview.activeSubscriptions} active subs` : undefined} />
-          <Kpi label="MRR" value={overview ? `${overview.mrrChf}` : '…'} sub="CHF / month, list prices" />
+          <Kpi label="MRR" value={overview ? `${overview.mrrChf}` : '…'} sub="CHF / month, base + seats" />
           <Kpi label="Environments" value={overview ? String(overview.runningEnvironments) : '…'}
             sub={overview ? `${overview.queuedEnvironments} queued` : undefined} />
           <Kpi label="VM start error · 7d" value={errorRate == null ? '—' : `${(errorRate * 100).toFixed(1)}%`}
@@ -1669,6 +1798,8 @@ export default function Admin() {
           </div>
         )}
 
+        {view === 'enquiries' && <EnquiriesView />}
+
         {view === 'teams' && (
         <Card>
           <CardHead title={`Teams & subscriptions (${shownTeams.length}${q ? ` of ${teams.length}` : ''})`} />
@@ -1707,7 +1838,10 @@ export default function Admin() {
                         : <span className="font-mono2 text-[10px] text-[--dark-muted]">—</span>}
                     </td>
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{t.subscriptionStatus ?? '—'}</td>
-                    <td className="px-5 py-3 font-mono2 text-xs">{t.mrrChf > 0 ? `CHF ${t.mrrChf}` : '—'}</td>
+                    <td className="px-5 py-3 font-mono2 text-xs">
+                      {t.mrrChf > 0 ? `CHF ${t.mrrChf}` : '—'}
+                      {t.mrrChf > 0 && !t.mrrKnown && <span className="text-[#E8B44C]" title="Sold by conversation — list price, not the agreed one"> *</span>}
+                    </td>
                     <td className="px-5 py-3 font-mono2 text-xs">{t.members}</td>
                     <td className="px-5 py-3 font-mono2 text-xs text-[--dark-muted]">{fmtDate(t.currentPeriodEnd)}</td>
                     <td className="px-5 py-3">

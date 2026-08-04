@@ -1,4 +1,5 @@
 import { Eyebrow, type Page, Reveal, Stat, TerminalDemo } from './Shared';
+import { TEAM_BASE, TEAM_INCLUDED, TEAM_SEAT, getPlanCard } from '@/lib/plans';
 
 export default function Home({ go }: { go: (p: Page) => void }) {
   return (
@@ -97,12 +98,13 @@ $ devplat connect --exec "mvn verify"
               </p>
             </Reveal>
             <Reveal delay={80} className="bg-[--ink] text-[--dark-text] p-8 md:col-span-2 dotgrid-dark">
-              <p className="eyebrow" style={{ color: 'var(--dark-muted)' }}>Flat, not metered</p>
-              <h3 className="mt-3 text-xl font-semibold">You pay for parallelism, not minutes.</h3>
+              <p className="eyebrow" style={{ color: 'var(--dark-muted)' }}>Priced per team, not per minute</p>
+              <h3 className="mt-3 text-xl font-semibold">You pay for your team, not for how hard it works.</h3>
               <p className="mt-2 text-sm text-[--dark-muted] max-w-[52ch]">
-                Plans from CHF 19 to CHF 249 a month, sized by concurrent environments and a fixed
-                resource cap per environment — never by minutes. Your invoice in January looks the
-                same as in December, no matter how often your team pushes.
+                CHF {TEAM_BASE} a month covers {TEAM_INCLUDED} developers and {getPlanCard('team').envs} parallel
+                environments; every developer after that is CHF {TEAM_SEAT}. No per-minute meter, no
+                overage bills — your invoice in January looks like December's, however often the team
+                pushes.
               </p>
             </Reveal>
           </div>

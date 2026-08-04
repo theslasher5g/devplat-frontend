@@ -229,9 +229,29 @@ export interface CreatedToken extends ApiTokenInfo { token: string }
 export interface SubscriptionInfo {
   planTier: string; planLabel: string; parallelEnvironments: number; chfMonthly: number;
   vcpuPerEnvironment: number; ramGbPerEnvironment: number; maxFootprintGb: number;
+  /** Seat pricing. `chfMonthly` above is the base; the total a team pays is
+   *  `chfTotalMonthly`, which the server computes so the page and the invoice
+   *  cannot disagree. Null on a tier whose price is agreed in a conversation. */
+  chfPerSeatMonthly: number;
+  includedSeats: number;
+  seats: number;
+  billableSeats: number;
+  chfTotalMonthly: number | null;
+  /** Null means unlimited. */
+  maxSeats: number | null;
+  selfServe: boolean;
   trialEndsAt: string | null;
   subscription: { status: string; currentPeriodEnd: string | null; priceId: string | null } | null;
   hasStripeCustomer: boolean;
+}
+
+export interface EnterpriseEnquiryRow {
+  id: string; email: string; company: string;
+  teamSize: number | null; message: string | null;
+  source: string; status: 'new' | 'contacted' | 'won' | 'lost';
+  createdAt: string; handledAt: string | null;
+  /** Present when the enquiry came from a signed-in team. */
+  teamName: string | null;
 }
 
 export interface InvoiceInfo {
@@ -280,7 +300,15 @@ export interface EnvironmentContainers { reachable: boolean; containers: Contain
 export interface AdminOverview {
   totalTeams: number; newTeams7d: number; activeSubscriptions: number;
   mrrChf: number;
-  mrrByTier: { tier: PlanTier; label: string; count: number; chfEach: number; chfTotal: number }[];
+  mrrByTier: {
+    tier: PlanTier; label: string; count: number; chfEach: number; chfTotal: number;
+    /** Seats charged for across all teams on this tier, and what they add. */
+    billableSeats: number; chfBase: number; chfSeats: number;
+    /** False on a sales-led tier: the figure is a list price nobody is billed
+     *  at, kept in the total but marked so the dashboard doesn't imply it is
+     *  measured revenue. */
+    priceKnown: boolean;
+  }[];
   vmStarts7d: number; vmStartFailures7d: number; vmStartErrorRate7d: number | null;
   runningEnvironments: number; queuedEnvironments: number;
   cacheHitRate: number | null; cacheReportingHosts: number; cacheLookups: number;
@@ -384,7 +412,11 @@ export interface AdminTeam {
   id: string; name: string; planTier: PlanTier; planLabel: string;
   // Manual entitlement override (comp/grant), independent of billing. null = none.
   planOverride: PlanTier | null; planOverrideLabel: string | null;
+  /** Base + seats for this team. */
   mrrChf: number;
+  /** False when the team is on a sales-led tier, where the computed figure is
+   *  a list price rather than what was actually agreed. */
+  mrrKnown: boolean;
   subscriptionStatus: string | null; currentPeriodEnd: string | null;
   ownerEmail: string | null;
   members: number; vmStarts30d: number; createdAt: string; ownerVerified: boolean;

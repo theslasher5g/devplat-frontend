@@ -86,11 +86,11 @@ const groups: Group[] = [
     items: [
       {
         q: 'Do you bill per minute or per build?',
-        a: 'Neither. Pricing is flat, by how many environments you run in parallel. No per-minute meter, no overage bills, no surprises at the end of the month.',
+        a: 'Neither. You pay a base price for the team plus a price per developer, and that is the whole bill. No per-minute meter, no overage bills, no surprises at the end of the month. When you hit your parallelism limit the next run queues rather than costing extra.',
       },
       {
         q: 'What support do I get?',
-        a: 'Solo plans get community support — this FAQ, the docs, and GitHub Discussions, where the team is active. Team and Scale plans add priority email support with a response SLA.',
+        a: 'During the 14-day evaluation: this FAQ, the docs, and GitHub Discussions, where the team is active. On Team, email support with a response inside 24 hours. On Enterprise, a named contact rather than a queue.',
       },
       {
         q: 'Can I change plans or cancel anytime?',
@@ -168,7 +168,7 @@ export default function Faq({ go }: { go: (p: Page) => void }) {
             ))}
           </div>
           <p className="mt-6 font-mono2 text-xs text-[--ink-soft]">
-            Team & Scale plans include priority email support with a response SLA.
+            Team includes email support with a response inside 24 hours; Enterprise adds a named contact.
           </p>
         </div>
       </section>

@@ -151,7 +151,7 @@ export default function Technik({ go }: { go: (p: Page) => void }) {
             <li className="flex gap-4"><span className="font-doto text-xl text-[--red] shrink-0">b</span>
               <span><span className="chip-soon">Roadmap</span> For the most common images (Postgres, Redis, Kafka, Elasticsearch, Mongo …) we're adding Firecracker snapshots with the image already loaded, for sub-second resume.</span></li>
             <li className="flex gap-4"><span className="font-doto text-xl text-[--red] shrink-0">c</span>
-              <span><span className="chip-soon">Roadmap</span> Team and Scale customers will be able to add their own images (e.g. fixture databases) to the cache.</span></li>
+              <span><span className="chip-soon">Roadmap</span> Team and Enterprise customers will be able to add their own images (e.g. fixture databases) to the cache.</span></li>
           </ol>
         </div>
       </section>

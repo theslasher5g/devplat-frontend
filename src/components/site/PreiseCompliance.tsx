@@ -1,24 +1,43 @@
 import { useState } from 'react';
-import { tiers } from '@/lib/demo';
 import { Eyebrow, type Page } from './Shared';
+import { EnterpriseEnquiry } from './EnterpriseEnquiry';
+
+import {
+  TEAM_BASE, TEAM_SEAT, TEAM_INCLUDED, TEAM_MAX_SEATS, YEARLY_FACTOR,
+} from '@/lib/plans';
 
 export function Preise({ go }: { go: (p: Page) => void }) {
   const [yearly, setYearly] = useState(false);
   const [open, setOpen] = useState<number | null>(0);
+  // Seat count the visitor is pricing for. Starts at the included allowance so
+  // the first number they see is the base price, not an inflated one.
+  const [seats, setSeats] = useState(TEAM_INCLUDED);
+  const billable = Math.max(0, seats - TEAM_INCLUDED);
+  const teamMonthly = TEAM_BASE + billable * TEAM_SEAT;
+  const shown = yearly ? Math.round(teamMonthly * YEARLY_FACTOR) : teamMonthly;
+
   const faq = [
-    ['What counts as a "parallel environment"?', 'An environment is a microVM with its own Docker daemon — typically one test run (one CI job or one local session), no matter how many containers run inside it. 5 parallel environments means: 5 CI jobs can run integration tests at the same time; the 6th waits briefly in the queue.'],
-    ['What happens once the limit is reached?', 'Nothing dramatic: the next run is queued and starts as soon as an environment frees up. No overage fees, no invoice with an asterisk. The dashboard shows your utilization so you know exactly when an upgrade pays off.'],
-    ['Do I need a Docker subscription?', 'No. Neither Docker Desktop nor a Docker Hub plan. Our cache serves the image pulls; your CI doesn\'t even need a Docker daemon.'],
-    ['Where exactly do my containers run?', 'Your test containers run on our own hardware in Basel, Switzerland — no hyperscaler in that path. The control plane (accounts, billing metadata) is hosted with Infomaniak, also in Switzerland. Our full sub-processor list is in the Privacy Policy.'],
-    ['How does billing work?', 'Monthly or annually in CHF by credit card, processed by Stripe. Prices are shown excluding VAT — we are a Swiss small business and not currently VAT-registered, so no VAT is added.'],
+    ['How does the seat price work?', `The base covers ${TEAM_INCLUDED} developers. Every developer after that is CHF ${TEAM_SEAT}/month. A team of ${TEAM_INCLUDED} pays CHF ${TEAM_BASE}; a team of 12 pays CHF ${TEAM_BASE + 7 * TEAM_SEAT}. Seats follow who is actually in your team — add someone and the next invoice is prorated, remove someone and it goes back down.`],
+    ['What counts as a "parallel environment"?', 'An environment is a microVM with its own Docker daemon — typically one test run (one CI job or one local session), no matter how many containers run inside it. 5 parallel environments means five CI jobs can run integration tests at the same time; the sixth waits briefly in the queue.'],
+    ['Where exactly does our test data run?', 'Your test containers run on our own hardware in Basel, Switzerland. No hyperscaler is in that path — not AWS, not Azure, not GCP. The control plane (accounts, billing metadata) is hosted with Infomaniak, also in Switzerland. Our complete sub-processor list is three names long and is in the Privacy Policy.'],
+    ['Can we get a DPA?', 'Yes, under Art. 28 GDPR — write to admin@devplat.ch and we will send one. Switzerland holds an EU adequacy decision, so transfers from the EU/EEA need no additional safeguards for the data that stays here.'],
+    ['What happens when we hit the parallelism limit?', 'Nothing dramatic: the next run is queued and starts as soon as an environment frees up. No overage fees, no invoice with an asterisk. The dashboard shows how often you queued, so you know when more parallelism actually pays for itself.'],
+    ['Do we need a Docker subscription?', 'No. Neither Docker Desktop nor a Docker Hub plan. Our cache serves the image pulls; your CI does not even need a Docker daemon.'],
+    ['How does billing work?', 'Monthly or annually in CHF by card, processed by Stripe. Prices exclude VAT — we are a Swiss small business and not currently VAT-registered, so none is added.'],
   ];
   return (
     <main>
       <section className="border-b hairline dotgrid">
         <div className="mx-auto max-w-6xl px-5 py-20">
           <Eyebrow>Pricing</Eyebrow>
-          <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-[20ch] leading-[1.02]">Flat. By parallelism. <span className="font-doto">No</span> asterisks.</h1>
-          <p className="mt-6 text-lg text-[--ink-soft] max-w-[52ch]">No counting minutes, no overages. You choose how many test runs can happen at once — the price stays put.</p>
+          <h1 className="text-4xl md:text-6xl font-semibold tracking-tight max-w-[20ch] leading-[1.02]">
+            Your test data <span className="font-doto">never</span> leaves Switzerland.
+          </h1>
+          <p className="mt-6 text-lg text-[--ink-soft] max-w-[54ch]">
+            Integration tests run on our own hardware in Basel — no hyperscaler in the path, a
+            sub-processor list three names long, and an audit trail you can hand to a reviewer.
+            Priced per team, not per minute.
+          </p>
           <div className="mt-8 inline-flex border hairline bg-white font-mono2 text-xs">
             <button onClick={() => setYearly(false)} className={`px-4 py-2 ${!yearly ? 'bg-[--ink] text-white' : 'text-[--ink-soft]'}`}>Monthly</button>
             <button onClick={() => setYearly(true)} className={`px-4 py-2 ${yearly ? 'bg-[--ink] text-white' : 'text-[--ink-soft]'}`}>Yearly −17 %</button>
@@ -27,78 +46,124 @@ export function Preise({ go }: { go: (p: Page) => void }) {
       </section>
 
       <section className="border-b hairline">
-        {/* Every card has an identical shape — name, price, one line of
-            positioning, the two numbers that define the tier, CTA — so the rows
-            line up across the grid without any height hacks. The per-plan
-            feature bullets used to live here and were different lengths per
-            card, which is what made the row ragged; they are now in the
-            comparison table below, where a matrix belongs and where each fact
-            exists once. */}
-        <div className="mx-auto max-w-6xl px-5 py-16 grid gap-6 lg:grid-cols-4 items-stretch">
-          {([
-            { name: 'Free', chf: 0, envs: 1, vcpu: 1, ramGb: 2, tagline: 'No credit card required.' },
-            ...tiers,
-          ] as { name: string; chf: number; envs: number; vcpu: number; ramGb: number; tagline: string; hot?: boolean }[])
-            .map((t) => {
-              const free = t.chf === 0;
-              return (
-                <div key={t.name}
-                  className={`border p-7 flex flex-col ${t.hot ? 'bg-[--ink] text-[--dark-text] border-[--ink] relative' : 'bg-white hairline'}`}>
-                  {t.hot && <span className="absolute -top-3 left-6 bg-[--red] text-white font-mono2 text-[10px] tracking-widest uppercase px-2 py-1">Popular</span>}
-                  <p className="eyebrow" style={t.hot ? { color: 'var(--dark-muted)' } : undefined}>{t.name}</p>
-                  <p className="mt-4 font-doto text-5xl leading-none">
-                    {free ? 0 : yearly ? Math.round(t.chf * 0.83) : t.chf}
-                    <span className="text-lg align-top text-[--red]">CHF</span>
-                  </p>
-                  <p className={`mt-2 font-mono2 text-[10px] uppercase tracking-widest ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>
-                    {free ? '14 days, then pick a plan' : yearly ? 'per month, billed yearly' : 'per month'}
-                  </p>
-                  {/* Fixed height so a tagline that wraps to two lines doesn't
-                      push its card's numbers out of line with the others. */}
-                  <p className={`mt-4 text-sm min-h-[2.75rem] ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{t.tagline}</p>
-                  {/* Label above value, not beside it. A card is ~204px wide
-                      inside its padding at the four-column breakpoint, which is
-                      not enough for "Per environment" next to "6 vCPU · 12 GB" —
-                      the label wrapped on that row and not the one above it,
-                      which looked like a mistake. Stacked, nothing wraps at any
-                      width and the values line up down the row. */}
-                  <dl className={`mt-2 border-t ${t.hot ? 'border-[--dark-line]' : 'hairline'}`}>
-                    {[
-                      ['Parallel environments', String(t.envs)],
-                      ['Per environment', `${t.vcpu} vCPU · ${t.ramGb} GB`],
-                    ].map(([label, value]) => (
-                      <div key={label} className={`py-3 border-b ${t.hot ? 'border-[--dark-line]' : 'hairline'}`}>
-                        <dt className={`font-mono2 text-[10px] uppercase tracking-widest ${t.hot ? 'text-[--dark-muted]' : 'text-[--ink-soft]'}`}>{label}</dt>
-                        <dd className={`mt-1 font-mono2 text-[15px] ${t.hot ? 'text-[--dark-text]' : 'text-[--ink]'}`}>{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {/* mt-auto pins every CTA to the bottom edge, so the buttons
-                      stay level even if a card ever grows a row. */}
-                  <button onClick={() => go('auth')} className="mt-auto pt-6 w-full">
-                    {/* Fixed height instead of padding: btn-ghost carries a 1px
-                        border and the filled variants don't, so equal padding
-                        left the outlined button 2px taller and its label a pixel
-                        off the others. */}
-                    <span className={`flex h-11 w-full items-center justify-center text-sm font-medium transition-colors ${
-                      free ? 'btn-ghost' : t.hot ? 'bg-white text-[--ink] hover:bg-[--red] hover:text-white' : 'btn-ink'
-                    }`}>
-                      {free ? 'Create an account' : `Choose ${t.name}`}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-        </div>
-        <div className="mx-auto max-w-6xl px-5 pb-16">
-          <div className="border hairline bg-white p-7 md:flex items-center justify-between gap-8">
-            <div>
-              <p className="eyebrow">Enterprise</p>
-              <p className="mt-2 text-lg font-semibold">Dedicated hardware, your own region, on-prem option, custom SLAs.</p>
-              <p className="text-sm text-[--ink-soft] mt-1">For banks, insurers, and anyone with strict requirements on data residency in Switzerland.</p>
-            </div>
-            <button onClick={() => go('contact')} className="btn-ghost px-6 py-3 mt-5 md:mt-0 shrink-0">Book a call</button>
+        {/* Three cards, not four. The fourth used to be Solo, which said "this
+            is for one developer" — the exact message the repositioning removes.
+            Team carries a seat calculator because a base-plus-seats price is
+            unreadable as two numbers: a buyer needs to see THEIR number, and
+            making them do the arithmetic is how a plan looks more expensive
+            than it is. */}
+        <div className="mx-auto max-w-6xl px-5 py-16 grid gap-6 lg:grid-cols-3 items-stretch">
+
+          <div className="border hairline bg-white p-7 flex flex-col">
+            <p className="eyebrow">Evaluation</p>
+            <p className="mt-4 font-doto text-5xl leading-none">0<span className="text-lg align-top text-[--red]">CHF</span></p>
+            <p className="mt-2 font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">14 days, no card</p>
+            <p className="mt-4 text-sm text-[--ink-soft] min-h-[3.5rem]">
+              Two seats and one environment — enough to point your real pipeline at it and see
+              what happens.
+            </p>
+            <dl className="mt-6 space-y-3 text-sm border-t hairline pt-5">
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Seats</dt><dd className="mt-0.5">2</dd></div>
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Parallel environments</dt><dd className="mt-0.5">1</dd></div>
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Per environment</dt><dd className="mt-0.5">1 vCPU · 2 GB</dd></div>
+            </dl>
+            <button onClick={() => go('auth')} className="btn-ghost h-11 px-6 mt-auto">Start evaluating</button>
           </div>
+
+          <div className="border bg-[--ink] text-[--dark-text] border-[--ink] p-7 flex flex-col relative">
+            <span className="absolute -top-3 left-6 bg-[--red] text-white font-mono2 text-[10px] tracking-widest uppercase px-2 py-1">Most teams</span>
+            <p className="eyebrow" style={{ color: 'var(--dark-muted)' }}>Team</p>
+            <p className="mt-4 font-doto text-5xl leading-none">
+              {shown}<span className="text-lg align-top text-[--red]">CHF</span>
+            </p>
+            <p className="mt-2 font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+              {yearly ? 'per month, billed yearly' : 'per month'} · {seats} {seats === 1 ? 'developer' : 'developers'}
+            </p>
+            <p className="mt-4 text-sm text-[--dark-muted] min-h-[3.5rem]">
+              CHF {TEAM_BASE} covers {TEAM_INCLUDED} developers, then CHF {TEAM_SEAT} each. Audit
+              log, roles and 2FA enforcement included — not held back for a bigger plan.
+            </p>
+
+            {/* The calculator is the card's real content. Base-plus-seats only
+                reads as fair once you can see your own number. */}
+            <div className="mt-6 border-t border-[--dark-line] pt-5">
+              <label className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">
+                Developers on your team
+              </label>
+              <input
+                type="range" min={1} max={TEAM_MAX_SEATS} value={seats}
+                onChange={(e) => setSeats(Number(e.target.value))}
+                aria-label="Number of developers"
+                className="mt-3 w-full accent-[--red]"
+              />
+              <div className="mt-2 flex justify-between font-mono2 text-[10px] text-[--dark-muted]">
+                <span>1</span><span>{TEAM_MAX_SEATS} — beyond that, Enterprise</span>
+              </div>
+              <p className="mt-3 font-mono2 text-[11px] text-[--dark-muted]">
+                {billable === 0
+                  ? `${seats} of ${TEAM_INCLUDED} included seats used`
+                  : `CHF ${TEAM_BASE} base + ${billable} × CHF ${TEAM_SEAT}`}
+              </p>
+            </div>
+
+            <dl className="mt-5 space-y-3 text-sm border-t border-[--dark-line] pt-5">
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Parallel environments</dt><dd className="mt-0.5">5</dd></div>
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--dark-muted]">Per environment</dt><dd className="mt-0.5">4 vCPU · 8 GB</dd></div>
+            </dl>
+            <button onClick={() => go('auth')} className="h-11 px-6 mt-auto bg-white text-[--ink] font-mono2 text-xs uppercase tracking-widest hover:bg-[--paper]">
+              Start with 14 free days
+            </button>
+          </div>
+
+          <div className="border hairline bg-white p-7 flex flex-col">
+            <p className="eyebrow">Enterprise</p>
+            {/* Deliberately no number. The top tier is sold by conversation
+                because that is the only way to find out what a regulated
+                customer will actually pay — a published price here would be a
+                ceiling we set ourselves. */}
+            <p className="mt-4 font-doto text-4xl leading-none">Let&rsquo;s talk</p>
+            <p className="mt-2 font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Priced to your setup</p>
+            <p className="mt-4 text-sm text-[--ink-soft] min-h-[3.5rem]">
+              For teams whose auditors ask where the data goes: dedicated hardware, SSO, a signed
+              DPA, custom retention, and a latency SLA.
+            </p>
+            <dl className="mt-6 space-y-3 text-sm border-t hairline pt-5">
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Seats</dt><dd className="mt-0.5">Unlimited</dd></div>
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Parallel environments</dt><dd className="mt-0.5">From 12</dd></div>
+              <div><dt className="font-mono2 text-[10px] uppercase tracking-widest text-[--ink-soft]">Per environment</dt><dd className="mt-0.5">6 vCPU · 12 GB, or agreed</dd></div>
+            </dl>
+            <a href="#enterprise" className="btn-ghost h-11 px-6 mt-auto grid place-items-center">Talk to us</a>
+          </div>
+        </div>
+      </section>
+
+      {/* ENTERPRISE ENQUIRY */}
+      <section id="enterprise" className="border-b hairline bg-[--paper] scroll-mt-20">
+        <div className="mx-auto max-w-6xl px-5 py-16 grid gap-8 lg:grid-cols-2 items-start">
+          <div>
+            <Eyebrow>Enterprise</Eyebrow>
+            <h2 className="text-3xl font-semibold tracking-tight">The questions your auditor asks.</h2>
+            <p className="mt-4 text-sm text-[--ink-soft] max-w-[52ch]">
+              Where does the data live? Who else touches it? Can you show me who did what? Most
+              answers to those questions involve a hyperscaler and a sub-processor list that runs
+              to two pages. Ours is: Basel, our own machines, three sub-processors, and an audit
+              log you can export.
+            </p>
+            <ul className="mt-6 space-y-2.5 text-sm text-[--ink-soft]">
+              {[
+                'Dedicated hardware, not shared capacity',
+                'SSO (SAML) and enforced two-factor',
+                'Signed DPA under Art. 28 GDPR',
+                'Custom data retention and a latency SLA',
+                'Named contact — not a support queue',
+              ].map((f) => (
+                <li key={f} className="flex gap-3">
+                  <span className="text-[--red] font-doto">+</span><span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <EnterpriseEnquiry source="pricing" />
         </div>
       </section>
 
@@ -112,7 +177,7 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               <thead>
                 <tr className="border-b hairline">
                   <th className="text-left p-4 font-medium eyebrow">Feature</th>
-                  {['Free', 'Solo', 'Team', 'Scale'].map((n) => (
+                  {['Evaluation', 'Team', 'Enterprise'].map((n) => (
                     <th key={n} className={`text-left p-4 font-semibold ${n === 'Team' ? 'text-[--red]' : ''}`}>{n}{n === 'Team' && ' ●'}</th>
                   ))}
                 </tr>
@@ -123,29 +188,49 @@ export function Preise({ go }: { go: (p: Page) => void }) {
                   // listed. They used to be bullets on the cards as well, in
                   // different quantities per card — which made the row ragged
                   // and kept the same facts in two places that could disagree.
-                  ['Price / month', ['CHF 0', 'CHF 19', 'CHF 79', 'CHF 249']],
-                  // Seats sit right under the price because they decide whether
-                  // a plan fits at all. Mirrors plans.max_members (migration 031).
-                  ['Team seats', ['1', '1', 'up to 10', 'up to 30']],
-                  // Solo is 1, not 2 — see backend migration 038.
-                  ['Parallel environments', ['1', '1', '5', '8']],
-                  ['vCPU per environment', ['1', '2', '4', '6']],
-                  ['RAM per environment', ['2 GB', '4 GB', '8 GB', '12 GB']],
-                  ['Time limit', ['14 days', 'none', 'none', 'none']],
-                  ['CLI + CI integration', [true, true, true, true]],
-                  ['Image cache', [true, true, true, true]],
-                  ['Custom images in cache', [false, false, true, true]],
-                  ['Team management & roles', [false, false, true, true]],
-                  ['Priority scheduling', [false, false, false, true]],
-                  ['Audit log', [false, false, false, true]],
-                  ['SSO (SAML)', ['—', '—', '—', 'Coming soon']],
-                  ['Latency SLA', ['—', '—', '—', '99.5 %']],
-                  ['Support', ['—', 'Community', 'Email < 24 h', '< 4 h']],
+                  ['Price / month', ['CHF 0', `CHF ${TEAM_BASE}`, 'On request']],
+                  // Second price row rather than a footnote: base-plus-seats is
+                  // two numbers, and hiding the second one is how a comparison
+                  // table becomes a complaint about the first invoice.
+                  ['Per developer beyond the allowance', ['—', `CHF ${TEAM_SEAT}`, 'Agreed']],
+                  ['Developers included in the base', ['2', String(TEAM_INCLUDED), 'Agreed']],
+                  // Mirrors plans.max_members (migration 043); Enterprise is
+                  // NULL there, which is what "unlimited" means.
+                  ['Maximum team size', ['2', `up to ${TEAM_MAX_SEATS}`, 'Unlimited']],
+                  ['Parallel environments', ['1', '5', 'From 12']],
+                  ['vCPU per environment', ['1', '4', '6, or agreed']],
+                  ['RAM per environment', ['2 GB', '8 GB', '12 GB, or agreed']],
+                  ['Time limit', ['14 days', 'none', 'none']],
+                  ['CLI + CI integration', [true, true, true]],
+                  ['Image cache', [true, true, true]],
+                  ['Custom images in cache', [false, true, true]],
+                  ['Team management & roles', [false, true, true]],
+                  // Moved down from Scale in migration 043. A plan sold to a
+                  // company without an audit log fails the first security
+                  // review it meets, so gating it was costing the sale it was
+                  // meant to upgrade.
+                  ['Audit log & export', [false, true, true]],
+                  // True on every tier, and checked against the code rather than
+                  // assumed: neither routes/teams.ts (require_two_factor) nor
+                  // routes/tokens.ts (allowed CIDRs) consults the plan. Listing
+                  // them as a Team feature would be the same defect the audit
+                  // log had before migration 037 — a pricing page describing a
+                  // product that does not exist. It also reads better: security
+                  // controls are not the upsell.
+                  ['Enforced two-factor', [true, true, true]],
+                  ['IP allowlists for API tokens', [true, true, true]],
+                  ['Priority scheduling', [false, false, true]],
+                  ['Dedicated hardware', [false, false, true]],
+                  ['SSO (SAML)', ['—', '—', 'Included']],
+                  ['Signed DPA (Art. 28 GDPR)', ['—', 'On request', 'Included']],
+                  ['Custom data retention', ['—', '—', 'Agreed']],
+                  ['Latency SLA', ['—', '—', '99.5 %']],
+                  ['Support', ['—', 'Email < 24 h', 'Named contact']],
                 ] as [string, (string | boolean)[]][]).map(([label, cells]) => (
                   <tr key={label}>
                     <td className="p-4 text-[--ink-soft]">{label}</td>
                     {cells.map((c, i) => (
-                      <td key={i} className={`p-4 ${i === 2 ? 'bg-[--ink]/[0.02]' : ''}`}>
+                      <td key={i} className={`p-4 ${i === 1 ? 'bg-[--ink]/[0.02]' : ''}`}>
                         {typeof c === 'boolean'
                           ? (c ? <span className="text-[--green] font-semibold">✓</span> : <span className="text-[--line]">—</span>)
                           : <span className="text-[--ink]">{c}</span>}
@@ -184,9 +269,16 @@ export function Preise({ go }: { go: (p: Page) => void }) {
               </thead>
               <tbody className="text-[--ink-soft]">
                 {[
-                  ['Pricing model', 'Flat by parallelism + a fixed resource cap', 'Minute bundles + overages'],
+                  // Residency first. It is the row a company reads, and the only
+                  // one where the answer is structural rather than a price that
+                  // can be matched next quarter.
+                  ['Where test data runs', 'Our own hardware in Basel, Switzerland', 'AWS, region of their choosing'],
+                  ['Sub-processors', 'Three, listed in full', 'Docker Inc. plus its cloud providers'],
+                  ['Pricing model', 'Base + per developer, no metering', 'Minute bundles + overages'],
+                  ['What happens at the limit', 'The next run queues', 'Overage billing'],
                   ['Docker subscription required', 'No', 'Tied to Docker plans'],
-                  ['Custom images in the cache', 'Yes (from Team)', 'Limited'],
+                  ['Custom images in the cache', 'Yes, from Team', 'Limited'],
+                  ['Audit log', 'Every paid plan, exportable', 'Enterprise tier'],
                   ['Contract & support', 'Direct, human support from the people who built it', 'Enterprise sales funnel'],
                 ].map(([a, b, c]) => (
                   <tr key={a} className="border-b hairline last:border-0">

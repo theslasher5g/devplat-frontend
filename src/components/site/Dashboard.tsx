@@ -11,9 +11,11 @@ import {
   type WebhookDelivery, type WebhookEndpoint, type WebhookEndpointList, type WebhookEndpointWithSecret,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PURCHASABLE_PLANS, TEAM_MAX_SEATS, YEARLY_FACTOR, type PurchasableTier } from '@/lib/plans';
 import { passwordMeetsPolicy, passwordRules } from '@/lib/passwordPolicy';
 import { isOlderVersion, useCliVersion } from '@/lib/useCliVersion';
 import { AuditList, Logo, useCountUp } from './Shared';
+import { EnterpriseEnquiry } from './EnterpriseEnquiry';
 
 /** A dashboard metric that counts up to its value once loaded. `value` is the
  *  resolved number, or null while still loading (renders a skeleton). */
@@ -241,8 +243,8 @@ function Badge({ s }: { s: string }) {
   return <span className={`font-mono2 text-[10px] uppercase tracking-wider border px-2 py-0.5 ${statusStyle[s] ?? 'text-[--dark-muted] border-[--dark-line]'}`}>{s === 'assigned' && <span className="pulse-dot mr-1">●</span>}{s}</span>;
 }
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-[--dark-card] border border-[--dark-line] ${className}`}>{children}</div>;
+function Card({ children, className = '', id }: { children: React.ReactNode; className?: string; id?: string }) {
+  return <div id={id} className={`bg-[--dark-card] border border-[--dark-line] ${className}`}>{children}</div>;
 }
 
 function Skeleton({ className = '' }: { className?: string }) {
@@ -1070,14 +1072,11 @@ function Tokens() {
 
 /* ---------- Billing: real data ---------- */
 
-// Mirrors the backend `plans` table. Solo is 1 parallel environment as of
-// migration 038 — this copy said 2 and is shown on the screen where someone
-// decides to pay, which is the worst place for it to be out of date.
-const TIER_CARDS = [
-  { tier: 'solo' as const, name: 'Solo', chf: 19, envs: 1, vcpu: 2, ramGb: 4 },
-  { tier: 'team' as const, name: 'Team', chf: 79, envs: 5, vcpu: 4, ramGb: 8 },
-  { tier: 'scale' as const, name: 'Scale', chf: 249, envs: 8, vcpu: 6, ramGb: 12 },
-];
+// The catalogue itself lives in lib/plans.ts — one copy, shared with the
+// pricing page. Everything except Evaluation is offered here: a team already
+// looking at this card has a plan, and "downgrade to the trial" is not a thing
+// checkout can do.
+const TIER_CARDS = PURCHASABLE_PLANS;
 
 /** Refer-a-team card: shareable link + how many referrals are pending vs.
  *  rewarded with a free month. Lives in the billing view. */
@@ -1130,14 +1129,24 @@ function Billing() {
     if (checkoutResult === 'success') void refresh();
   }, [checkoutResult, refresh]);
 
-  const checkout = async (tier: 'solo' | 'team' | 'scale') => {
+  const checkout = async (tier: PurchasableTier) => {
     setBusy(tier);
     setErr('');
     try {
       const { url } = await api<{ url: string }>('/billing/checkout', { body: { tier, interval: yearly ? 'yearly' : 'monthly' } });
       window.location.href = url;
-    } catch {
-      setErr('Checkout could not be started — is Stripe configured?');
+    } catch (e) {
+      // "is Stripe configured?" was the answer to every failure, which stopped
+      // being true when checkout started refusing retired and sales-led tiers.
+      // Telling someone to check a Stripe key because they picked a plan we no
+      // longer sell sends them looking in the wrong place entirely.
+      if (e instanceof ApiError && e.status === 410) {
+        setErr('That plan is no longer offered. Reload the page for the current ones.');
+      } else if (e instanceof ApiError && e.status === 409) {
+        setErr('That plan is set up together with us rather than bought online — send an enquiry below.');
+      } else {
+        setErr('Checkout could not be started — is Stripe configured?');
+      }
       setBusy('');
     }
   };
@@ -1177,13 +1186,35 @@ function Billing() {
                 <p className="font-doto text-5xl mt-2">{sub.planLabel}<span className="text-[--red]">●</span></p>
                 <p className="text-sm text-[--dark-muted] mt-2">
                   {sub.parallelEnvironments} parallel environment{sub.parallelEnvironments === 1 ? '' : 's'}
-                  {isPaid && ` · CHF ${sub.chfMonthly} / month`}
+                  {/* The total, not the base. Showing CHF 190 to a team of
+                      twelve paying CHF 365 is the number they would compare
+                      against the invoice — and then open a ticket about. */}
+                  {isPaid && sub.chfTotalMonthly !== null && ` · CHF ${sub.chfTotalMonthly} / month`}
+                  {isPaid && sub.chfTotalMonthly === null && ' · Priced to your setup'}
                   {isPaid && sub.subscription?.currentPeriodEnd && ` · Renews on ${fmtDate(sub.subscription.currentPeriodEnd)}`}
                   {!isPaid && sub.trialEndsAt && ` · Trial ends ${fmtDate(sub.trialEndsAt)}`}
                 </p>
                 <p className="font-mono2 text-[11px] text-[--dark-muted] mt-1">
                   up to {sub.vcpuPerEnvironment} vCPU / {sub.ramGbPerEnvironment} GB per environment · max {sub.maxFootprintGb} GB total
                 </p>
+                {/* Where the total comes from. A seat-priced invoice that
+                    changes when someone joins needs its arithmetic visible, or
+                    the next headcount change reads as an unexplained increase. */}
+                {isPaid && sub.chfPerSeatMonthly > 0 && (
+                  <p className="font-mono2 text-[11px] text-[--dark-muted] mt-1">
+                    CHF {sub.chfMonthly} base ({sub.includedSeats} developers included)
+                    {sub.billableSeats > 0
+                      ? ` + ${sub.billableSeats} × CHF ${sub.chfPerSeatMonthly} · ${sub.seats} in the team`
+                      : ` · ${sub.seats} of ${sub.includedSeats} included seats used`}
+                  </p>
+                )}
+                {/* The seat cap is the wall a growing team hits, and it is
+                    worth seeing before the invite fails rather than after. */}
+                {sub.maxSeats !== null && sub.seats >= sub.maxSeats && (
+                  <p className="font-mono2 text-[11px] text-[#E8B44C] mt-2">
+                    You are at the {sub.maxSeats}-seat limit of this plan. Larger teams are set up with us — <a href="#enterprise-enquiry" className="underline">get in touch</a>.
+                  </p>
+                )}
                 {sub.subscription && sub.subscription.status !== 'active' && (
                   <p className="font-mono2 text-[11px] text-[#E8B44C] mt-2">Status: {sub.subscription.status}</p>
                 )}
@@ -1250,29 +1281,63 @@ function Billing() {
             </div>
           } />
           <div className="divide-y divide-[--dark-line]">
-            {TIER_CARDS.map((t) => (
-              <div key={t.tier} className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p className="text-sm font-medium">{t.name}</p>
-                  <p className="font-mono2 text-[11px] text-[--dark-muted]">
-                    {t.envs} environments · {t.vcpu} vCPU / {t.ramGb} GB each · CHF {yearly ? Math.round(t.chf * 0.83) : t.chf}/mo{yearly ? ' (billed yearly)' : ''}
-                  </p>
+            {TIER_CARDS.map((t) => {
+              // A sales-led tier has no price to show and no checkout to open:
+              // POST /billing/checkout answers 409 contact_sales for it. Giving
+              // it a Choose button would be an offer the API refuses.
+              const base = t.chf === null ? null : (yearly ? Math.round(t.chf * YEARLY_FACTOR) : t.chf);
+              const seatPrice = t.chfPerSeat === 0 ? null
+                : (yearly ? Math.round(t.chfPerSeat * YEARLY_FACTOR) : t.chfPerSeat);
+              return (
+                <div key={t.tier} className="flex items-center justify-between gap-4 px-5 py-4">
+                  <div>
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <p className="font-mono2 text-[11px] text-[--dark-muted]">
+                      {t.envs} environments · {t.vcpu} vCPU / {t.ramGb} GB each
+                    </p>
+                    <p className="font-mono2 text-[11px] text-[--dark-muted] mt-0.5">
+                      {base === null
+                        ? 'Priced to your setup'
+                        : <>
+                            CHF {base}/mo{seatPrice !== null && <> · {t.includedSeats} developers included, then CHF {seatPrice} each</>}
+                            {yearly ? ' (billed yearly)' : ''}
+                          </>}
+                    </p>
+                  </div>
+                  {sub.planTier === t.tier ? (
+                    <span className="font-mono2 text-[10px] border border-[#57C99A]/50 text-[#57C99A] px-3 py-1.5 shrink-0">Current</span>
+                  ) : !t.selfServe ? (
+                    <a href="#enterprise-enquiry" className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white shrink-0">Talk to us</a>
+                  ) : isPaid ? (
+                    <button onClick={openPortal} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white shrink-0">Via portal</button>
+                  ) : (
+                    <button onClick={() => checkout(t.tier)} disabled={!!busy} className="font-mono2 text-[10px] border border-white px-3 py-1.5 hover:bg-white hover:text-[--dark] disabled:opacity-50 shrink-0">
+                      {busy === t.tier ? '…' : 'Choose'}
+                    </button>
+                  )}
                 </div>
-                {sub.planTier === t.tier ? (
-                  <span className="font-mono2 text-[10px] border border-[#57C99A]/50 text-[#57C99A] px-3 py-1.5">Current</span>
-                ) : isPaid ? (
-                  <button onClick={openPortal} className="font-mono2 text-[10px] border border-[--dark-line] px-3 py-1.5 hover:border-white">Via portal</button>
-                ) : (
-                  <button onClick={() => checkout(t.tier)} disabled={!!busy} className="font-mono2 text-[10px] border border-white px-3 py-1.5 hover:bg-white hover:text-[--dark] disabled:opacity-50">
-                    {busy === t.tier ? '…' : 'Choose'}
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
           {err && <p className="px-5 py-3 font-mono2 text-xs text-[#F07A6A]">{err}</p>}
         </Card>
       </div>
+      {/* The way out of the top self-serve plan. It lives on the billing page
+          rather than behind a mailto: because the team that has just hit the
+          seat cap is already here, and the moment they notice is the moment
+          they are most likely to say something. scroll-mt keeps the sticky
+          header off the form when the anchor above jumps here. */}
+      <Card id="enterprise-enquiry" className="p-6 scroll-mt-24">
+        <p className="font-mono2 text-[11px] uppercase tracking-widest text-[--dark-muted]">Outgrown these plans?</p>
+        <p className="text-sm text-[--dark-muted] mt-2 max-w-[62ch]">
+          Larger teams, dedicated hardware, SSO, a signed DPA or a retention period of your own are
+          set up together with us. Tell us what you need and we will come back with a concrete
+          number.
+        </p>
+        <div className="mt-5 max-w-[38rem]">
+          <EnterpriseEnquiry source="dashboard" compact tone="dark" />
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1382,13 +1447,16 @@ function TeamSecurityCard({ isOwner }: { isOwner: boolean }) {
 function AuditLogLocked() {
   return (
     <Card>
+      {/* The audit log moved down to Team in migration 043, so this card is now
+          only ever shown to an evaluation team. Naming Scale here would point
+          someone at a tier three times the price of the one that has it. */}
       <CardHead title="Activity log" right={
-        <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5">Scale</span>
+        <span className="font-mono2 text-[10px] uppercase tracking-wider border border-[#E8B44C]/40 text-[#E8B44C] px-2 py-0.5">Team</span>
       } />
       <div className="p-5">
         <p className="text-sm text-[--dark-muted] max-w-[70ch]">
           Every token, member and settings change on this team is already being recorded — reading and
-          exporting that trail is included with the Scale plan. Upgrading opens the full history, not
+          exporting that trail is included from the Team plan. Upgrading opens the full history, not
           just what happens afterwards.
         </p>
       </div>
@@ -1657,7 +1725,7 @@ function Team() {
           {canManage && seatsLeft === 0 && (
             <p className="px-5 py-3 border-b border-[--dark-line] font-mono2 text-[11px] text-[--dark-muted] leading-relaxed">
               {singleSeatPlan
-                ? `${info.team.planLabel} is a single-seat plan — it covers you alone. Team (10 seats) and Scale (30 seats) can invite people.`
+                ? `${info.team.planLabel} is a single-seat plan — it covers you alone. Team (up to ${TEAM_MAX_SEATS} seats) and Enterprise (unlimited) can invite people.`
                 : `All ${seatCap} seats on ${info.team.planLabel} are taken (${info.members.length} member${info.members.length === 1 ? '' : 's'}, ${info.pendingInvites.length} pending invite${info.pendingInvites.length === 1 ? '' : 's'}). Remove someone, revoke an invite, or move up a plan.`}
             </p>
           )}
@@ -1975,7 +2043,7 @@ function EnvironmentTtlCard() {
         ) : (
           <p className="font-mono2 text-[11px] text-[--dark-muted]">
             {planLabel} runs a fixed {def}-minute lifetime. Team can raise it to 60 minutes and
-            Scale to 120.
+            Enterprise to 120.
           </p>
         )}
 
